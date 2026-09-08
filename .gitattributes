@@ -1,0 +1,3 @@
+# Runtime patch SHA-256 values pin LF bytes. Keep clones and release archives
+# identical even when Windows Git has core.autocrlf=true.
+patches/llama.cpp/*.patch text eol=lf

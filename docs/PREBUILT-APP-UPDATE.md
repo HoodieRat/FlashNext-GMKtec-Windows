@@ -16,3 +16,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\app\scripts\Update-Ins
 5. Open the normal FlashNext shortcut (it should target `%LOCALAPPDATA%\FlashNextManager\app\current\FlashNext.Dashboard.exe`), or run that installed executable directly. Start the AI server and confirm Running. If your old shortcut points elsewhere, use the source installer's shortcut setup instead of launching an outdated copy.
 
 The prebuilt update is self-contained for .NET and does not require compiling the app. It does not repair a missing runtime/model installation. Do not replace the runtime or reset saved settings to apply an app-only update.
+
+Release maintainers must verify the bootstrap probe and every runtime patch against their pinned hashes **inside the finished source ZIP**, not only in the working tree. `.gitattributes` keeps those patches LF-encoded so Windows Git newline conversion cannot invalidate the installer checksums.
