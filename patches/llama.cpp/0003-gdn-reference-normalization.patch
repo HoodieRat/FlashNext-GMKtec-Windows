@@ -1,0 +1,33 @@
+diff --git a/src/models/models.h b/src/models/models.h
+index 354d88e..a0c4435 100644
+--- a/src/models/models.h
++++ b/src/models/models.h
+@@ -10,6 +10,13 @@
+ 
+ class llama_memory_hybrid_idx_context;
+ 
++// Match the Flash Linear Attention normalization used during GDN training:
++// x * rsqrt(sum(x*x) + eps). See ggml-org/llama.cpp#28068.
++static inline ggml_tensor * build_gdn_l2_norm(ggml_context * ctx, ggml_tensor * x, float eps) {
++    const float n = x->ne[0];
++    return ggml_scale(ctx, ggml_rms_norm(ctx, x, eps/n), 1.0f/sqrtf(n));
++}
++
+ //
+ // base classes
+ //
+diff --git a/src/models/qwen4exp.cpp b/src/models/qwen4exp.cpp
+index c9be917..ce43a14 100644
+--- a/src/models/qwen4exp.cpp
++++ b/src/models/qwen4exp.cpp
+@@ -1409,8 +1409,8 @@ ggml_tensor * llama_model_qwen4exp::graph::build_gated_delta_net(
+ 
+     const float eps_norm = hparams.f_norm_rms_eps;
+ 
+-    q_conv = ggml_l2_norm(ctx0, q_conv, eps_norm);
+-    k_conv = ggml_l2_norm(ctx0, k_conv, eps_norm);
++    q_conv = build_gdn_l2_norm(ctx0, q_conv, eps_norm);
++    k_conv = build_gdn_l2_norm(ctx0, k_conv, eps_norm);
+ 
+     // repeat to match shapes when head keys != value keys; unneeded with the fused GDN
+     if (num_k_heads != num_v_heads && (!cparams.fused_gdn_ar || !cparams.fused_gdn_ch)) {

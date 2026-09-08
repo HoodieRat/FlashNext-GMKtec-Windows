@@ -1,0 +1,410 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FlashNext settings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "activeProfile",
+    "paths",
+    "server",
+    "profiles",
+    "chat",
+    "metrics",
+    "downloads",
+    "lan",
+    "updates"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "activeProfile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modelDirectory",
+        "runtimeRoot",
+        "dataRoot"
+      ],
+      "properties": {
+        "modelDirectory": {
+          "type": "string"
+        },
+        "runtimeRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dataRoot": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port",
+        "controlPort",
+        "startupTimeoutSeconds",
+        "shutdownTimeoutSeconds",
+        "parallelRequests",
+        "gpuLayers",
+        "draftGpuLayers",
+        "metrics",
+        "jinja",
+        "agent",
+        "webUi",
+        "promptCache",
+        "specType",
+        "extraArguments"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "enum": [
+            "127.0.0.1",
+            "localhost",
+            "::1"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "controlPort": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "startupTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600
+        },
+        "shutdownTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "parallelRequests": {
+          "type": "integer",
+          "const": 1
+        },
+        "batchSize": {
+          "type": "integer",
+          "enum": [1024, 2048, 4096]
+        },
+        "ubatchSize": {
+          "type": "integer",
+          "enum": [256, 512, 1024, 2048]
+        },
+        "gpuLayers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999
+        },
+        "draftGpuLayers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999
+        },
+        "metrics": {
+          "const": true
+        },
+        "jinja": {
+          "const": true
+        },
+        "agent": {
+          "const": false
+        },
+        "webUi": {
+          "const": false
+        },
+        "promptCache": {
+          "type": "boolean"
+        },
+        "specType": {
+          "type": "string",
+          "enum": [
+            "none",
+            "draft-mtp",
+            "ngram-simple"
+          ]
+        },
+        "specDraftPMin": {
+          "type": "number",
+          "enum": [0.00, 0.50, 0.65, 0.75, 0.80],
+          "default": 0.75,
+          "description": "MTP draft confidence threshold (restart required). Independent of sampler Min-P."
+        },
+        "visionDetail": {
+          "type": "string",
+          "enum": [
+            "fast",
+            "balanced",
+            "detailed",
+            "maximum"
+          ]
+        },
+        "extraArguments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "maxItems": 32
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/profile"
+      }
+    },
+    "chat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "systemPrompt",
+        "requestTimeoutSeconds",
+        "saveConversations",
+        "recordContentInLogs"
+      ],
+      "properties": {
+        "systemPrompt": {
+          "type": "string",
+          "maxLength": 32768
+        },
+        "requestTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 7200
+        },
+        "saveConversations": {
+          "type": "boolean"
+        },
+        "recordContentInLogs": {
+          "const": false
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "writeJsonl",
+        "writeCsv",
+        "retentionDays",
+        "includePromptOrResponse"
+      ],
+      "properties": {
+        "writeJsonl": {
+          "type": "boolean"
+        },
+        "writeCsv": {
+          "type": "boolean"
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "includePromptOrResponse": {
+          "const": false
+        }
+      }
+    },
+    "downloads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimumFreeGiB",
+        "recommendedFreeGiB",
+        "maxConcurrentLargeFiles",
+        "cacheDirectory"
+      ],
+      "properties": {
+        "minimumFreeGiB": {
+          "type": "integer",
+          "minimum": 115
+        },
+        "recommendedFreeGiB": {
+          "type": "integer",
+          "minimum": 140
+        },
+        "maxConcurrentLargeFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "cacheDirectory": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "lan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "bindAddress",
+        "allowedRemoteAddress",
+        "corsOrigins"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "bindAddress": {
+          "type": "string"
+        },
+        "allowedRemoteAddress": {
+          "type": "string",
+          "minLength": 1
+        },
+        "corsOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          },
+          "maxItems": 16
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "bindAddress": {
+                "enum": [
+                  "127.0.0.1",
+                  "localhost",
+                  "::1"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "updates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "automaticChecks",
+        "preservePreviousRuntime"
+      ],
+      "properties": {
+        "automaticChecks": {
+          "const": false
+        },
+        "preservePreviousRuntime": {
+          "const": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "thinking",
+        "reasoningEffort",
+        "temperature",
+        "topP",
+        "topK",
+        "minP",
+        "presencePenalty",
+        "repetitionPenalty",
+        "maxOutputTokens",
+        "contextSize",
+        "mtpNMax",
+        "seed"
+      ],
+      "properties": {
+        "thinking": {
+          "type": "boolean"
+        },
+        "reasoningEffort": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "topP": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "topK": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "minP": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "presencePenalty": {
+          "type": "number",
+          "minimum": -2,
+          "maximum": 2
+        },
+        "repetitionPenalty": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 2
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32768
+        },
+        "contextSize": {
+          "type": "integer",
+          "minimum": 4096,
+          "maximum": 131072
+        },
+        "mtpNMax": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "projectRevision": "1.0.5",
+  "file": "bootstrap/FlashNext.VulkanProbe.exe",
+  "sha256": "9996aaf8c6f5207a9319d2180264040def011fe5c414be523a49d9f5e62a8f7a",
+  "bytes": 1307648,
+  "runtimeIdentifier": "win-x64",
+  "publishKind": "native-aot",
+  "purpose": "Early hardware preflight before dependency installation. Loads the Windows Vulkan loader and reports device-local heap sizes as JSON."
+}

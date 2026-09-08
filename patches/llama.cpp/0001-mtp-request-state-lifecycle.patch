@@ -1,0 +1,391 @@
+diff --git a/common/speculative.cpp b/common/speculative.cpp
+index f587f75812cf3da8ab85b516d8f05f80cec088ee..73a371ecbee99c0fb28e005fda4889e5c13aec33 100644
+--- a/common/speculative.cpp
++++ b/common/speculative.cpp
+@@ -1568,6 +1568,55 @@ struct common_speculative_impl_draft_mtp : public common_speculative_impl {
+         }
+     }
+ 
++    bool get_state(llama_seq_id seq_id, std::vector<uint8_t> & data) const override {
++        if (seq_id < 0 || seq_id >= (llama_seq_id) n_seq) {
++            return false;
++        }
++
++        const uint32_t state_magic   = 0x4d545048; // "MTPH"
++        const uint32_t state_version = 1;
++        const uint32_t state_width   = (uint32_t) n_embd;
++        const size_t header_size = 3 * sizeof(uint32_t);
++        const size_t row_size    = (size_t) n_embd * sizeof(float);
++
++        data.resize(header_size + row_size);
++        std::memcpy(data.data(),                        &state_magic,   sizeof(state_magic));
++        std::memcpy(data.data() + sizeof(uint32_t),     &state_version, sizeof(state_version));
++        std::memcpy(data.data() + 2 * sizeof(uint32_t), &state_width,   sizeof(state_width));
++        std::memcpy(data.data() + header_size, pending_h[seq_id].data(), row_size);
++        return true;
++    }
++
++    void set_state(llama_seq_id seq_id, const std::vector<uint8_t> & data) override {
++        if (seq_id < 0 || seq_id >= (llama_seq_id) n_seq) {
++            return;
++        }
++
++        const uint32_t expected_magic = 0x4d545048; // "MTPH"
++        const size_t header_size = 3 * sizeof(uint32_t);
++        const size_t row_size    = (size_t) n_embd * sizeof(float);
++        if (data.size() != header_size + row_size) {
++            return;
++        }
++
++        uint32_t state_magic   = 0;
++        uint32_t state_version = 0;
++        uint32_t state_width   = 0;
++        std::memcpy(&state_magic,   data.data(),                        sizeof(state_magic));
++        std::memcpy(&state_version, data.data() + sizeof(uint32_t),     sizeof(state_version));
++        std::memcpy(&state_width,   data.data() + 2 * sizeof(uint32_t), sizeof(state_width));
++        if (state_magic != expected_magic || state_version != 1 || state_width != (uint32_t) n_embd) {
++            return;
++        }
++
++        std::memcpy(pending_h[seq_id].data(), data.data() + header_size, row_size);
++        verify_h[seq_id].clear();
++        verify_h_rows[seq_id] = 0;
++        if (chain_heads) {
++            chain_h[seq_id].clear();
++        }
++    }
++
+     bool process(const llama_batch & batch_in) override {
+         if (batch_in.n_tokens <= 0) {
+             return true;
+@@ -1602,6 +1651,26 @@ struct common_speculative_impl_draft_mtp : public common_speculative_impl {
+ 
+         const size_t row_bytes = (size_t) n_embd * sizeof(float);
+ 
++        // A full sequence replay starts a new logical request. pending_h is a
++        // cross-batch boundary row, so carrying it from the prior request into
++        // position zero contaminates the entire recurrent MTP draft context.
++        for (llama_seq_id seq_id = 0; seq_id < (llama_seq_id) n_seq; ++seq_id) {
++            if (i_batch_beg[seq_id] >= 0 && batch_in.pos[i_batch_beg[seq_id]] == 0) {
++                float prior_max_abs = 0.0f;
++                for (const float value : pending_h[seq_id]) {
++                    prior_max_abs = std::max(prior_max_abs, std::abs(value));
++                }
++                std::fill(pending_h[seq_id].begin(), pending_h[seq_id].end(), 0.0f);
++                verify_h[seq_id].clear();
++                verify_h_rows[seq_id] = 0;
++                if (chain_heads) {
++                    chain_h[seq_id].clear();
++                }
++                SPC_INF("reset MTP request boundary for seq_id=%d at position 0 (prior max_abs=%.6g)\n",
++                        (int) seq_id, (double) prior_max_abs);
++            }
++        }
++
+         // if kv is shared with target (e.g Gemma4), then we can skip this catch-up decode
+         if (!is_mem_shared) {
+             common_batch_clear(batch);
+diff --git a/ggml/src/ggml-vulkan/ggml-vulkan.cpp b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+index 83086857b5112106d54995b4a69ded08b825989e..971b0985e03b03f33308a75a65d0140cf236801b 100644
+--- a/ggml/src/ggml-vulkan/ggml-vulkan.cpp
++++ b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+@@ -18105,20 +18105,32 @@ static void ggml_vk_graph_optimize(ggml_backend_t backend, struct ggml_cgraph *
+         return;
+     }
+ 
+-    auto const &is_empty = [](ggml_tensor * node) -> bool {
++    auto const &is_empty = [](const ggml_tensor * node) -> bool {
+         return node->op == GGML_OP_NONE || node->op == GGML_OP_RESHAPE || node->op == GGML_OP_TRANSPOSE || node->op == GGML_OP_VIEW || node->op == GGML_OP_PERMUTE;
+     };
+ 
+-    auto const &is_src_of = [](const ggml_tensor *dst, const ggml_tensor *src) -> bool {
++    auto const &is_src_of = [&is_empty](const ggml_tensor *dst, const ggml_tensor *src) -> bool {
++        auto const &base = [](const ggml_tensor * tensor) {
++            return tensor->view_src ? tensor->view_src : tensor;
++        };
+         for (uint32_t s = 0; s < GGML_MAX_SRC; ++s) {
+             if (dst->src[s] == src) {
+                 return true;
+             }
++            if (is_empty(dst) || is_empty(src)) {
++                continue;
++            }
++            // A source view of dst may read storage written through a different view by src.
++            if (dst->src[s] && base(dst->src[s]) == base(src)) {
++                return true;
++            }
++            // Moving dst forward may overwrite storage still read through a view by src.
++            if (src->src[s] && base(dst) == base(src->src[s])) {
++                return true;
++            }
+         }
+         // implicit dependency if they view the same tensor
+-        const ggml_tensor *dst2 = dst->view_src ? dst->view_src : dst;
+-        const ggml_tensor *src2 = src->view_src ? src->view_src : src;
+-        if (dst2 == src2) {
++        if (base(dst) == base(src)) {
+             return true;
+         }
+         return false;
+diff --git a/src/llama-memory-hybrid-idx.cpp b/src/llama-memory-hybrid-idx.cpp
+index 1769b0bb8e4591c9fe9884c98aa06a93eae1da40..4876915a9de618d4937e0be4a66e778cc58814c1 100644
+--- a/src/llama-memory-hybrid-idx.cpp
++++ b/src/llama-memory-hybrid-idx.cpp
+@@ -640,8 +640,14 @@ void llama_memory_hybrid_idx_context::set_input_qsa(
+             auto & w = mem->pooled_valid(seq_of_stream);
+             w = std::min(w, n_complete);
+ 
+-            const int64_t n_dirty = n_complete - w;
+-            GGML_ASSERT(n_dirty <= n_dirty_max && "dirty tables sized at graph build; see qsa_pooled_n_dirty_max");
++            // qsa_pooled_n_dirty_max sized these tables at graph build from the ubatch's own
++            // positions; here we recount n_complete from the cells that are actually filled.
++            // Speculative decoding can leave drafted cells past the ubatch's q_max, so the
++            // fill-time count can exceed the build-time bound. Write what fits and leave the
++            // watermark short - the next ubatch repools the rest through the same pending-refill
++            // path a state load uses, and the rows left behind stay masked by the -inf bias
++            // meanwhile. When the counts agree this is exactly the old behaviour.
++            const int64_t n_dirty = std::min<int64_t>(n_complete - w, n_dirty_max);
+ 
+             for (int64_t i = 0; i < n_dirty_max; ++i) {
+                 const bool    live = i < n_dirty;
+@@ -656,7 +662,7 @@ void llama_memory_hybrid_idx_context::set_input_qsa(
+                 }
+             }
+ 
+-            w = n_complete;
++            w += n_dirty;
+         }
+ 
+         for (int64_t ii = 0; ii < n_tps; ++ii) {
+diff --git a/src/llama-memory-recurrent.cpp b/src/llama-memory-recurrent.cpp
+index 57919accf09569e129ab35b5b2bd4dab7dbe8a3a..5d553bbcd520cd83b5164eb18aa32a138fa256a7 100644
+--- a/src/llama-memory-recurrent.cpp
++++ b/src/llama-memory-recurrent.cpp
+@@ -1279,6 +1279,10 @@ uint32_t llama_memory_recurrent_context::get_n_rs() const {
+     return is_full ? mem->size : mem->n;
+ }
+ 
++uint32_t llama_memory_recurrent_context::get_n_rs_seq() const {
++    return mem->n_rs_seq;
++}
++
+ uint32_t llama_memory_recurrent_context::get_head() const {
+     return is_full ? 0 : mem->head;
+ }
+diff --git a/src/llama-memory-recurrent.h b/src/llama-memory-recurrent.h
+index 4abb3f5cf5c09611844dff5361ca36e51ff9c07f..ca3948e7ed5ca8776b6f90b61718201e26638aae 100644
+--- a/src/llama-memory-recurrent.h
++++ b/src/llama-memory-recurrent.h
+@@ -167,6 +167,7 @@ public:
+     //
+ 
+     uint32_t get_n_rs() const;
++    uint32_t get_n_rs_seq() const;
+     uint32_t get_head() const;
+     int32_t  get_rs_z() const;
+     uint32_t get_size() const;
+diff --git a/src/models/qwen4exp.cpp b/src/models/qwen4exp.cpp
+index 1b9e3983eea0c90251bad3f4f47ec91aa6d0889e..c7663396293d93800549107273028739ac5de65f 100644
+--- a/src/models/qwen4exp.cpp
++++ b/src/models/qwen4exp.cpp
+@@ -800,7 +800,12 @@ ggml_tensor * llama_model_qwen4exp::graph::build_qsa_top_k(
+         return env != nullptr ? (uint32_t) atoi(env) : 32u;
+     }();
+ 
+-    const bool use_pooled_cache = n_stream == 1 &&
++    // The pooled-row watermark has no speculative rollback planes. An MTP verifier graph can
++    // populate and trust rows before draft acceptance, while seq_rm can only invalidate by
++    // position afterward. Recompute pooled keys whenever this target context is exporting the
++    // hidden states consumed by MTP; ordinary non-speculative QSA keeps the incremental cache.
++    const bool use_pooled_cache = !cparams.embeddings_nextn &&
++        n_stream == 1 &&
+         mctx_hyb->get_pooled_k(il) != nullptr &&
+         (pooled_max_tokens == 0 || ubatch.n_tokens <= pooled_max_tokens) &&
+         getenv("LLAMA_QSA_NO_POOLED_CACHE") == nullptr;
+@@ -1458,7 +1463,8 @@ ggml_tensor * llama_model_qwen4exp::graph::build_conv_state_at(
+         int                  il) {
+     const auto * mctx_cur = inp->mctx;
+ 
+-    const auto kv_head = mctx_cur->get_head();
++    const auto kv_head  = mctx_cur->get_head();
++    const auto mem_size = mctx_cur->get_size();
+ 
+     const int64_t n_seqs    = ubatch.n_seqs;
+     const int64_t row_total = conv_states_all->ne[0];
+@@ -1480,17 +1486,44 @@ ggml_tensor * llama_model_qwen4exp::graph::build_conv_state_at(
+     // keep the last state_cols columns for the next ubatch
+     const size_t row_size = ggml_row_size(conv_states_all->type, row_total);
+ 
+-    ggml_tensor * tail = ggml_view_3d(ctx0, conv_input,
+-            state_cols, channels, n_seqs,
+-            conv_input->nb[1], conv_input->nb[2],
+-            ggml_row_size(conv_input->type, conv_input->ne[0] - state_cols));
++    const uint32_t n_rs_seq = mctx_cur->get_n_rs_seq();
+ 
+-    ggml_tensor * dst = ggml_view_2d(ctx0, conv_states_all,
+-            state_cols * channels, n_seqs,
+-            conv_states_all->nb[1],
+-            kv_head * row_size);
++    if (n_rs_seq == 0) {
++        ggml_tensor * tail = ggml_view_3d(ctx0, conv_input,
++                state_cols, channels, n_seqs,
++                conv_input->nb[1], conv_input->nb[2],
++                ggml_row_size(conv_input->type, conv_input->ne[0] - state_cols));
+ 
+-    ggml_build_forward_expand(gf, ggml_cpy(ctx0, ggml_cont(ctx0, tail), dst));
++        ggml_tensor * dst = ggml_view_2d(ctx0, conv_states_all,
++                state_cols * channels, n_seqs,
++                conv_states_all->nb[1],
++                kv_head * row_size);
++
++        ggml_build_forward_expand(gf, ggml_cpy(ctx0, ggml_cont(ctx0, tail), dst));
++    } else {
++        // The qwen4exp trunk has two independent convolution histories per recurrent
++        // layer (GDN QKV and PLE). They must follow the same rollback-plane layout as
++        // the GDN matrix state: verifier batches write the final state to plane zero
++        // and the preceding per-token states to planes 1..n_rs_seq.
++        const int64_t K = (int64_t) n_rs_seq + 1;
++
++        for (int64_t t = 1; t <= K; ++t) {
++            const int64_t s_idx  = std::max<int64_t>(0, conv_input->ne[0] - state_cols - K + t);
++            const int64_t s_slot = K - t;
++
++            ggml_tensor * tail = ggml_view_3d(ctx0, conv_input,
++                    state_cols, channels, n_seqs,
++                    conv_input->nb[1], conv_input->nb[2],
++                    ggml_row_size(conv_input->type, s_idx));
++
++            ggml_tensor * dst = ggml_view_2d(ctx0, conv_states_all,
++                    state_cols * channels, n_seqs,
++                    conv_states_all->nb[1],
++                    (s_slot * mem_size + kv_head) * row_size);
++
++            ggml_build_forward_expand(gf, ggml_cpy(ctx0, ggml_cont(ctx0, tail), dst));
++        }
++    }
+ 
+     return conv_input;
+ }
+diff --git a/tools/server/server-context.cpp b/tools/server/server-context.cpp
+index a91a103151dd3ca643f22074e80cb0615cf95986..a4f6788f41d2798adea2de8b9ca4d77049cebfcb 100644
+--- a/tools/server/server-context.cpp
++++ b/tools/server/server-context.cpp
+@@ -212,6 +212,7 @@ struct server_slot {
+     std::vector<int32_t> spec_i_batch;
+     common_prompt_checkpoint spec_ckpt;
+     bool spec_is_replay = false;
++    llama_token spec_replay_eog = LLAMA_TOKEN_NULL;
+ 
+     // TODO: move members that belong to the task (such as `generated_text`, `has_new_line`) to task_results_state
+     //       see https://github.com/ggml-org/llama.cpp/pull/18283#issuecomment-3710175837
+@@ -325,6 +326,7 @@ struct server_slot {
+         SLT_DBG(*this, "%s", "\n");
+ 
+         spec_is_replay = false;
++        spec_replay_eog = LLAMA_TOKEN_NULL;
+ 
+         last_nl_pos    = 0;
+         generated_text = "";
+@@ -443,6 +445,13 @@ struct server_slot {
+             return 0;
+         }
+ 
++        // A checkpoint replay with no accepted prefix still has to decode the
++        // boundary token once before emitting its already-accepted EOG. Do not
++        // start another speculative draft and rediscover the same EOG tail.
++        if (spec_replay_eog != LLAMA_TOKEN_NULL && spec_draft.empty()) {
++            return 0;
++        }
++
+         // determine the max draft that fits the current slot state
+         // note: slot.prompt is not yet expanded with the `id` token sampled above
+         //       also, need to leave space for 1 extra token to allow context shifts
+@@ -2905,6 +2914,13 @@ private:
+                                 llama_memory_seq_pos_min(llama_get_memory(ctx_tgt), slot.id),
+                                 llama_memory_seq_pos_max(llama_get_memory(ctx_tgt), slot.id));
+ 
++                        // The MTP implementation carries the target hidden row that belongs at
++                        // the draft boundary outside both llama contexts. It must be checkpointed
++                        // with the recurrent target/draft tensors: after a partial rejection the
++                        // accepted prefix is replayed from this exact boundary, and leaving the row
++                        // from the rejected tail desynchronizes the replayed draft state.
++                        common_speculative_get_state(spec.get(), slot.id, slot.spec_ckpt.data_spec);
++
+                         if (use_ckpt_dft) {
+                             slot.spec_ckpt.update_dft(ctx_dft, slot.id, LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);
+                         }
+@@ -3742,7 +3758,12 @@ private:
+             llama_token id;
+             {
+                 scoped_timer timer(t_sampl, n_sampl);
+-                id = common_sampler_sample(slot.smpl.get(), slot.ctx_tgt, tok_idx);
++                if (slot.spec_replay_eog != LLAMA_TOKEN_NULL) {
++                    id = slot.spec_replay_eog;
++                    slot.spec_replay_eog = LLAMA_TOKEN_NULL;
++                } else {
++                    id = common_sampler_sample(slot.smpl.get(), slot.ctx_tgt, tok_idx);
++                }
+             }
+ 
+             slot.i_batch = -1;
+@@ -3812,7 +3833,12 @@ private:
+                     for (const llama_token id : accepted) {
+                         common_sampler_accept(slot.smpl.get(), id, true);
+                     }
+-                    accepted.push_back(common_sampler_sample(slot.smpl.get(), slot.ctx_tgt, slot.spec_i_batch.back()));
++                    if (slot.spec_replay_eog != LLAMA_TOKEN_NULL) {
++                        accepted.push_back(slot.spec_replay_eog);
++                        slot.spec_replay_eog = LLAMA_TOKEN_NULL;
++                    } else {
++                        accepted.push_back(common_sampler_sample(slot.smpl.get(), slot.ctx_tgt, slot.spec_i_batch.back()));
++                    }
+                     common_sampler_accept(slot.smpl.get(), accepted.back(), true);
+                 } else if (can_rollback && slot.task->params.sampling.temp > 0.0f &&
+                            slot.spec_dists.size() == slot.spec_draft.size()) {
+@@ -3824,6 +3850,19 @@ private:
+ 
+                 GGML_ASSERT(accepted.size() >= 1);
+ 
++                // process_token() stops at the first EOG. Do not leave any
++                // already-decoded draft tokens behind that EOG in the slot or
++                // recurrent memory; include them in the rollback below.
++                llama_token accepted_eog = LLAMA_TOKEN_NULL;
++                for (size_t k = 0; k + 1 < accepted.size(); ++k) {
++                    if (llama_vocab_is_eog(vocab, accepted[k])) {
++                        SLT_INF(slot, "discarding %zu accepted draft tokens past EOG\n", accepted.size() - k - 1);
++                        accepted_eog = accepted[k];
++                        accepted.resize(k + 1);
++                        break;
++                    }
++                }
++
+                 const uint32_t n_rollback = slot.spec_draft.size() + 1 - accepted.size();
+ 
+                 const bool use_ckpt_tgt =
+@@ -3839,6 +3878,13 @@ private:
+ 
+                         // partial acceptance is not supported by the context -> truncate the draft and restore the state
+                         slot.spec_is_replay = true;
++                        if (accepted_eog != LLAMA_TOKEN_NULL) {
++                            // EOG is a sampled terminal token and must not be decoded into
++                            // recurrent state. Replay only the accepted prefix; after that
++                            // prefix has been decoded, emit this EOG as the final token.
++                            slot.spec_replay_eog = accepted_eog;
++                            accepted.pop_back();
++                        }
+                         slot.spec_draft = std::move(accepted);
+                         slot.spec_dists.clear();
+ 
+@@ -3852,6 +3898,12 @@ private:
+                             ckpt.load_dft(slot.ctx_dft, slot.id, LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);
+                         }
+ 
++                        // Rewind implementation-owned speculative state together with both
++                        // contexts. In particular, draft-mtp's pending hidden row was advanced by
++                        // the rejected verification batch and cannot be reconstructed by restoring
++                        // the recurrent tensors alone.
++                        common_speculative_set_state(spec.get(), slot.id, ckpt.data_spec);
++
+                         slot.mem.seq_rm(slot.id, ckpt.pos_max + 1, -1);
+ 
+                         slot.prompt.tokens.keep_first(ckpt.n_tokens);

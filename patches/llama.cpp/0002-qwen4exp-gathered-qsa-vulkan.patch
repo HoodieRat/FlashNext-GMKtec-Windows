@@ -1,0 +1,429 @@
+diff --git a/ggml/include/ggml.h b/ggml/include/ggml.h
+index d3819c7..6c696f1 100644
+--- a/ggml/include/ggml.h
++++ b/ggml/include/ggml.h
+@@ -1692,6 +1692,13 @@ extern "C" {
+             struct ggml_tensor  * a,  // data
+             struct ggml_tensor  * b); // row indices
+ 
++    // Gather Q8_0 rows without dequantizing them. Backends that implement
++    // this operation preserve the source blocks byte-for-byte in the result.
++    GGML_API struct ggml_tensor * ggml_get_rows_q8_0(
++            struct ggml_context * ctx,
++            struct ggml_tensor  * a,  // Q8_0 data
++            struct ggml_tensor  * b); // row indices
++
+     GGML_API struct ggml_tensor * ggml_get_rows_back(
+             struct ggml_context * ctx,
+             struct ggml_tensor  * a,  // gradients of ggml_get_rows result
+diff --git a/ggml/src/ggml-vulkan/ggml-vulkan.cpp b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+index 8308685..7294662 100644
+--- a/ggml/src/ggml-vulkan/ggml-vulkan.cpp
++++ b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+@@ -926,6 +926,7 @@ struct vk_device_struct {
+     vk_pipeline pipeline_mul_mat_vec_nc_f16_f32;
+     vk_pipeline pipeline_get_rows[GGML_TYPE_COUNT];
+     vk_pipeline pipeline_get_rows_f32[GGML_TYPE_COUNT];
++    vk_pipeline pipeline_get_rows_q8_0_q8_0;
+     vk_pipeline pipeline_get_rows_back_f32;
+     vk_pipeline pipeline_acc_f32;
+     vk_pipeline pipeline_set_f32;
+@@ -5836,6 +5837,7 @@ static void ggml_vk_load_shaders(vk_device& device, vk_pipeline requested) {
+     ggml_vk_create_pipeline(device, device->pipeline_get_rows_f32[GGML_TYPE_Q8_0_ROCMFPX],  "get_rows_rocmfpx_fp8_f32",  get_rows_rocmfpx_fp8_f32_len,  get_rows_rocmfpx_fp8_f32_data,  "main", 3, sizeof(vk_op_binary_push_constants), {1024, 1, 1}, {}, 1);
+     ggml_vk_create_pipeline(device, device->pipeline_get_rows_f32[GGML_TYPE_MXFP4],   "get_rows_mxfp4_f32",   get_rows_mxfp4_f32_len,   get_rows_mxfp4_f32_data,   "main", 3, sizeof(vk_op_binary_push_constants), {1024, 1, 1}, {}, 1);
+     ggml_vk_create_pipeline(device, device->pipeline_get_rows_f32[GGML_TYPE_NVFP4],   "get_rows_nvfp4_f32",   get_rows_nvfp4_f32_len,   get_rows_nvfp4_f32_data,   "main", 3, sizeof(vk_op_binary_push_constants), {1024, 1, 1}, {}, 1);
++    ggml_vk_create_pipeline(device, device->pipeline_get_rows_q8_0_q8_0, "get_rows_q8_0_q8_0", get_rows_q8_0_q8_0_len, get_rows_q8_0_q8_0_data, "main", 3, sizeof(vk_op_binary_push_constants), {128, 1, 1}, {}, 1);
+     ggml_vk_create_pipeline(device, device->pipeline_get_rows_back_f32, "get_rows_back_f32", get_rows_back_f32_len, get_rows_back_f32_data, "main", 3, sizeof(vk_op_binary_push_constants), {256, 1, 1}, {}, 1, true);
+ 
+     ggml_vk_create_pipeline(device, device->pipeline_matmul_split_k_reduce, "split_k_reduce", split_k_reduce_len, split_k_reduce_data, "main", 2, 2 * sizeof(uint32_t), {256 * 4, 1, 1}, {}, 1);
+@@ -11633,6 +11635,9 @@ static vk_pipeline ggml_vk_op_get_pipeline(ggml_backend_vk_context * ctx, const
+         if (dst->type == GGML_TYPE_F32) {
+             return ctx->device->pipeline_get_rows_f32[src0->type];
+         }
++        if (src0->type == GGML_TYPE_Q8_0 && dst->type == GGML_TYPE_Q8_0) {
++            return ctx->device->pipeline_get_rows_q8_0_q8_0;
++        }
+         return nullptr;
+     case GGML_OP_GET_ROWS_BACK:
+         if (src0->type == GGML_TYPE_F32 && src1->type == GGML_TYPE_I32 && dst->type == GGML_TYPE_F32) {
+@@ -18824,6 +18829,9 @@ static bool ggml_backend_vk_device_supports_op(ggml_backend_dev_t dev, const ggm
+             }
+         case GGML_OP_GET_ROWS:
+             {
++                if (op->src[0]->type == GGML_TYPE_Q8_0 && op->type == GGML_TYPE_Q8_0) {
++                    return true;
++                }
+                 switch (op->src[0]->type) {
+                     case GGML_TYPE_F32:
+                     case GGML_TYPE_F16:
+@@ -20024,7 +20032,9 @@ static void ggml_vk_check_results_0(ggml_backend_vk_context * ctx, ggml_cgraph *
+         } else if (tensor->op == GGML_OP_TRANSPOSE) {
+             tensor_clone = ggml_transpose(ggml_ctx, src_clone[0]);
+         } else if (tensor->op == GGML_OP_GET_ROWS) {
+-            tensor_clone = ggml_get_rows(ggml_ctx, src_clone[0], src_clone[1]);
++            tensor_clone = tensor->type == GGML_TYPE_Q8_0
++                ? ggml_get_rows_q8_0(ggml_ctx, src_clone[0], src_clone[1])
++                : ggml_get_rows(ggml_ctx, src_clone[0], src_clone[1]);
+         } else if (tensor->op == GGML_OP_ARGSORT) {
+             tensor_clone = ggml_argsort(ggml_ctx, src_clone[0], (ggml_sort_order) *(int *)tensor->op_params);
+         } else if (tensor->op == GGML_OP_TOP_K) {
+diff --git a/ggml/src/ggml-vulkan/vulkan-shaders/get_rows_quant_same.comp b/ggml/src/ggml-vulkan/vulkan-shaders/get_rows_quant_same.comp
+new file mode 100644
+index 0000000..33aa825
+--- /dev/null
++++ b/ggml/src/ggml-vulkan/vulkan-shaders/get_rows_quant_same.comp
+@@ -0,0 +1,39 @@
++#version 450
++
++#include "types.glsl"
++#include "generic_binary_head.glsl"
++
++layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
++
++#if !defined(BLOCK_BYTES)
++#error BLOCK_BYTES must be defined
++#endif
++
++void main() {
++    const uint i00b = gl_GlobalInvocationID.x;
++    if (i00b >= p.ne00 / QUANT_K) {
++        return;
++    }
++
++    uint gid_z = gl_GlobalInvocationID.z;
++    while (gid_z < p.ne11 * p.ne12) {
++        uint gid_y = gl_GlobalInvocationID.y;
++        while (gid_y < p.ne10) {
++            const uint i10 = gid_y;
++            const uint i11 = gid_z / p.ne12;
++            const uint i12 = gid_z % p.ne12;
++
++            const uint i01 = data_b[i10*p.nb10 + i11*p.nb11 + i12*p.nb12];
++
++            const uint a_block = i01*p.nb01 + i11*p.nb02 + i12*p.nb03 + i00b*p.nb00;
++            const uint d_block = i10*p.nb21 + i11*p.nb22 + i12*p.nb23 + i00b*p.nb20;
++
++            [[unroll]] for (uint j = 0; j < BLOCK_BYTES; ++j) {
++                data_d[d_block*BLOCK_BYTES + j] = data_a[a_block*BLOCK_BYTES + j];
++            }
++
++            gid_y += gl_WorkGroupSize.y * gl_NumWorkGroups.y;
++        }
++        gid_z += gl_WorkGroupSize.z * gl_NumWorkGroups.z;
++    }
++}
+diff --git a/ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp b/ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp
+index eb0e5bf..2907261 100644
+--- a/ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp
++++ b/ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp
+@@ -805,6 +805,11 @@ void process_shaders() {
+         string_to_spv("get_rows_" + tname + "_f32", shader, merge_maps(base_dict, {{"TEMP_TYPE", "FLOAT_TYPE"}, {data_a_key, "1"}, {"B_TYPE", "int"}, {"D_TYPE", "float"}}));
+     }
+ 
++    // Byte-preserving Q8_0 row gather for sparse quantized KV attention.
++    string_to_spv("get_rows_q8_0_q8_0", "get_rows_quant_same.comp",
++            {{"A_TYPE", "uint8_t"}, {"B_TYPE", "int"}, {"D_TYPE", "uint8_t"},
++             {"QUANT_K", "32"}, {"BLOCK_BYTES", "34"}});
++
+     string_to_spv("get_rows_i32", "get_rows.comp", {{"TEMP_TYPE", "uint"}, {"A_TYPE", "uint"}, {"B_TYPE", "int"}, {"D_TYPE", "uint"}});
+ 
+     string_to_spv("mul_mat_vec_p021_f16_f32_subgroup_add", "mul_mat_vec_p021.comp", {{"A_TYPE", "float16_t"}, {"A_TYPEV4", "f16vec4"}, {"B_TYPE", "float"}, {"B_TYPEV4", "vec4"}, {"D_TYPE", "float"}, {"USE_SUBGROUP_ADD", "1"}});
+diff --git a/ggml/src/ggml.c b/ggml/src/ggml.c
+index ed86a0a..1f4cf1d 100644
+--- a/ggml/src/ggml.c
++++ b/ggml/src/ggml.c
+@@ -3976,6 +3976,26 @@ struct ggml_tensor * ggml_get_rows(
+     return result;
+ }
+ 
++struct ggml_tensor * ggml_get_rows_q8_0(
++        struct ggml_context * ctx,
++        struct ggml_tensor  * a,
++        struct ggml_tensor  * b) {
++    GGML_ASSERT(a->type == GGML_TYPE_Q8_0);
++    GGML_ASSERT(a->ne[0] % ggml_blck_size(a->type) == 0);
++    GGML_ASSERT(a->ne[2] == b->ne[1]);
++    GGML_ASSERT(a->ne[3] == b->ne[2]);
++    GGML_ASSERT(b->ne[3] == 1);
++    GGML_ASSERT(b->type == GGML_TYPE_I32);
++
++    struct ggml_tensor * result = ggml_new_tensor_4d(ctx, a->type, a->ne[0], b->ne[0], b->ne[1], b->ne[2]);
++
++    result->op     = GGML_OP_GET_ROWS;
++    result->src[0] = a;
++    result->src[1] = b;
++
++    return result;
++}
++
+ // ggml_get_rows_back
+ 
+ struct ggml_tensor * ggml_get_rows_back(
+diff --git a/src/models/models.h b/src/models/models.h
+index 354d88e..751a31e 100644
+--- a/src/models/models.h
++++ b/src/models/models.h
+@@ -2329,7 +2329,7 @@ struct llama_model_qwen4exp : public llama_model_base {
+                             int * sections,
+                             int   il);
+ 
+-        // dense self-attention restricted to the cells that top_k names
++        // self-attention restricted to the cells that top_k names
+         ggml_tensor * build_attn_qsa(
+         llm_graph_input_attn_kv * inp,
+                     ggml_tensor * q_cur,
+@@ -2339,6 +2339,16 @@ struct llama_model_qwen4exp : public llama_model_base {
+                           float   kq_scale,
+                             int   il);
+ 
++        // gather the selected cache rows and run FA over only the compact K/V set
++        ggml_tensor * build_attn_qsa_gathered(
++                    ggml_tensor * q_cur,
++                    ggml_tensor * k,
++                    ggml_tensor * v,
++                    ggml_tensor * kq_mask,
++                    ggml_tensor * top_k,
++                          float   kq_scale,
++                            int   il);
++
+         // the QSA cache layout inputs do not depend on the layer, only on its compress ratio,
+         // so the layers sharing a ratio share one input set
+         std::map<uint32_t, llm_graph_input_qsa *> qsa_inps;
+diff --git a/src/models/qwen4exp.cpp b/src/models/qwen4exp.cpp
+index 1b9e398..c9be917 100644
+--- a/src/models/qwen4exp.cpp
++++ b/src/models/qwen4exp.cpp
+@@ -972,8 +972,126 @@ ggml_tensor * llama_model_qwen4exp::graph::build_qsa_top_k(
+     return top_k;
+ }
+ 
+-// Dense GQA self-attention restricted to the cells that top_k names.
+-// The mask build below copies the MLA sparse path in llm_graph_context::build_attn.
++// Gather the selected cache rows entirely in the graph, then map every
++// (query token, KV head, stream) tuple onto an independent FA channel. top_k
++// already contains cache-cell indices, so no host-side index translation is
++// needed. The compact mask keeps invalid tail/foreign-sequence cells at -inf.
++ggml_tensor * llama_model_qwen4exp::graph::build_attn_qsa_gathered(
++        ggml_tensor * q_cur,
++        ggml_tensor * k,
++        ggml_tensor * v,
++        ggml_tensor * kq_mask,
++        ggml_tensor * top_k,
++        float         kq_scale,
++        int           il) {
++    const int64_t D        = k->ne[0];
++    const int64_t HKV      = k->ne[1];
++    const int64_t n_kv     = k->ne[2];
++    const int64_t n_stream = k->ne[3];
++    const int64_t W        = top_k->ne[0];
++    const int64_t n_tps    = top_k->ne[1];
++    const int64_t n_q      = n_tps*n_stream;
++    const int64_t HQ       = q_cur->ne[1];
++    const int64_t Gp       = HQ/HKV;
++    const int64_t C        = HKV*n_q;
++
++    GGML_ASSERT(D == q_cur->ne[0]);
++    GGML_ASSERT(HKV > 0 && HQ%HKV == 0);
++    GGML_ASSERT(q_cur->ne[2] == n_q);
++    GGML_ASSERT(top_k->ne[2] == 1 && top_k->ne[3] == n_stream);
++    GGML_ASSERT(kq_mask->ne[0] == n_kv && kq_mask->ne[1] == n_tps && kq_mask->ne[3] == n_stream);
++    GGML_ASSERT(v->ne[0] == D && v->ne[1] == HKV && v->ne[2] == n_kv && v->ne[3] == n_stream);
++    GGML_ASSERT(k->nb[2] == k->nb[1]*HKV);
++    GGML_ASSERT(v->nb[2] == v->nb[1]*HKV);
++    GGML_ASSERT(!(v->nb[1] > v->nb[2]) && "gathered QSA requires the FA K/V cache layout");
++
++    // TOP_K returns the selected cells in descending score order, while the
++    // legacy dense attention encounters the same selected cells in ascending
++    // cache order. Preserve that reduction order to minimize floating-point
++    // drift: sort only the already-selected cell IDs (the selected set is
++    // unchanged), entirely on-device.
++    ggml_tensor * cell_order = ggml_argsort(ctx0,
++            ggml_cast(ctx0, top_k, GGML_TYPE_F32), GGML_SORT_ORDER_ASC);
++    ggml_tensor * cell_src = ggml_reshape_4d(ctx0, top_k, 1, W, n_q, 1);
++    cell_order = ggml_reshape_4d(ctx0, cell_order, W, n_q, 1, 1);
++    ggml_tensor * cells = ggml_get_rows(ctx0, cell_src, cell_order);
++    cells = ggml_reshape_4d(ctx0, cells, W, n_tps, 1, n_stream);
++    cb(cells, "qsa_selected_cells", il);
++
++    // A cache cell contains HKV rows. Expand each selected cell index to
++    // cell*HKV + head. The first dimension is W so GET_ROWS writes keys
++    // contiguously within each FA channel without a K/V transpose copy.
++    ggml_tensor * row_base = ggml_scale(ctx0, ggml_cast(ctx0, cells, GGML_TYPE_F32), (float) HKV);
++    row_base = ggml_reshape_4d(ctx0, row_base, 1, W, 1, n_q);
++    row_base = ggml_repeat_4d(ctx0, row_base, 1, W, HKV, n_q);
++
++    ggml_tensor * row_head = ggml_arange(ctx0, 0.0f, (float) HKV, 1.0f);
++    row_head = ggml_reshape_4d(ctx0, row_head, 1, 1, HKV, 1);
++
++    ggml_tensor * row_ids = ggml_add(ctx0, row_base, row_head);
++    row_ids = ggml_cast(ctx0,
++            ggml_reshape_2d(ctx0, row_ids, W*HKV*n_tps, n_stream), GGML_TYPE_I32);
++    cb(row_ids, "qsa_kv_rows", il);
++
++    // Flatten (cell, KV head) in the cache only as an indexed row source.
++    // GET_ROWS supports quantized inputs on Vulkan and produces the compact
++    // dequantized result on-device; no indices or cache data visit the host.
++    ggml_tensor * k_rows = ggml_view_3d(ctx0, k, D, HKV*n_kv, n_stream,
++            k->nb[1], k->nb[3], 0);
++    ggml_tensor * v_rows = ggml_view_3d(ctx0, v, D, HKV*n_kv, n_stream,
++            v->nb[1], v->nb[3], 0);
++
++    GGML_ASSERT(k->type == GGML_TYPE_Q8_0 && v->type == GGML_TYPE_Q8_0);
++    ggml_tensor * kg = ggml_get_rows_q8_0(ctx0, k_rows, row_ids);
++    ggml_tensor * vg = ggml_get_rows_q8_0(ctx0, v_rows, row_ids);
++
++    // Keep the gathered cache rows in their original Q8_0 representation so
++    // compact FA uses the same dequantization path and precision as legacy FA.
++    kg = ggml_reshape_4d(ctx0, kg, D, W, 1, C);
++    vg = ggml_reshape_4d(ctx0, vg, D, W, 1, C);
++    cb(kg, "qsa_k_gathered", il);
++    cb(vg, "qsa_v_gathered", il);
++
++    // Gather each query's original attention mask with the same selected
++    // indices. Repeating it across KV heads preserves causal, tail, hole and
++    // sequence-boundary masking even when W exceeds the number of valid cells.
++    ggml_tensor * mask_rows = ggml_reshape_4d(ctx0, kq_mask, 1, n_kv, n_q, 1);
++    ggml_tensor * mask_ids  = ggml_reshape_4d(ctx0, cells, W, n_q, 1, 1);
++    ggml_tensor * mg        = ggml_get_rows(ctx0, mask_rows, mask_ids);
++    mg = ggml_reshape_4d(ctx0, mg, W, 1, 1, n_q);
++    mg = ggml_repeat_4d(ctx0, mg, W, 1, HKV, n_q);
++    mg = ggml_reshape_4d(ctx0, mg, W, 1, 1, C);
++    if (mg->type != GGML_TYPE_F16) {
++        mg = ggml_cast(ctx0, mg, GGML_TYPE_F16);
++    }
++    cb(mg, "qsa_mask_gathered", il);
++
++    // [D, HQ, n_q] -> [D, Gp, C, 1] -> one independent FA channel per
++    // (query token, KV head, stream), with Gp query heads in each GQA group.
++    ggml_tensor * q = ggml_reshape_4d(ctx0, q_cur, D, Gp, C, 1);
++    q = ggml_permute(ctx0, q, 0, 2, 3, 1);
++
++    ggml_tensor * cur = ggml_flash_attn_ext(ctx0, q, kg, vg, mg, kq_scale,
++            hparams.f_max_alibi_bias,
++            hparams.attn_soft_cap ? hparams.f_attn_logit_softcapping : 0.0f);
++    res->add_fused_node({ LLM_FUSED_OP_FLASH_ATTN, cur, il });
++    ggml_flash_attn_ext_set_prec(cur, GGML_PREC_F32);
++    cb(cur, "qsa_fattn", il);
++
++    // Restore [D*HQ, n_q].
++    cur = ggml_permute(ctx0, cur, 0, 1, 3, 2);
++    if (!ggml_is_contiguous(cur)) {
++        cur = ggml_cont(ctx0, cur);
++    }
++    cur = ggml_reshape_2d(ctx0, cur, D*HQ, n_q);
++    ggml_build_forward_expand(gf, cur);
++
++    return cur;
++}
++
++// GQA self-attention restricted to the cells that top_k names. The known-good
++// dense masked path remains the default. LLAMA_QSA_GATHERED enables the
++// experimental compact K/V path for focused correctness and performance A/B.
+ ggml_tensor * llama_model_qwen4exp::graph::build_attn_qsa(
+         llm_graph_input_attn_kv * inp,
+         ggml_tensor *             q_cur,
+@@ -1013,37 +1131,77 @@ ggml_tensor * llama_model_qwen4exp::graph::build_attn_qsa(
+ 
+     ggml_tensor * kq_mask = inp->get_kq_mask();
+ 
+-    // prepare new kq mask - starts filled with -INFINITY
+-    ggml_tensor * kq_mask_all = ggml_fill(ctx0, kq_mask, -INFINITY);
+-
+-    // reshape KQ mask into tensor with rows of size 1:
+-    // [n_kv, n_batch, 1, n_stream] -> [1, n_kv, n_batch, n_stream]
+-    kq_mask_all = ggml_view_4d(ctx0, kq_mask_all, 1, kq_mask_all->ne[0], kq_mask_all->ne[1], kq_mask_all->ne[3], kq_mask_all->nb[0], kq_mask_all->nb[1], kq_mask_all->nb[2], 0);
+-
+-    // reshape top_k indices: [n_top_k, n_batch, 1, n_stream] -> [n_top_k, n_batch, n_stream, 1]
+-    ggml_tensor * top_k_3d = ggml_view_4d(ctx0, top_k, top_k->ne[0], top_k->ne[1], top_k->ne[3], 1, top_k->nb[1], top_k->nb[2], top_k->ne[3]*top_k->nb[3], 0);
+-
+-    // prepare zero-filled tensor with rows of size 1: [1, n_top_k, n_batch, n_stream]
+-    // this will be our source of zero values for unmasking top k mask elements
+-    ggml_tensor * zeros = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, 1, top_k_3d->ne[0], top_k_3d->ne[1], top_k_3d->ne[2]);
+-    zeros = ggml_fill(ctx0, zeros, 0.0f);
+-
+-    // modify KQ mask by unmasking elements that are in top_k indices
+-    // ggml_set_rows([1, n_kv, n_batch, n_stream], [1, n_top_k, n_batch, n_stream], [n_top_k, n_batch, n_stream, 1])
+-    ggml_tensor * kq_mask_top_k = ggml_set_rows(ctx0, kq_mask_all, zeros, top_k_3d);
+-
+-    // reshape to restore the original shape of KQ mask:
+-    // [1, n_kv, n_batch, n_stream] -> [n_kv, n_batch, 1, n_stream]
+-    kq_mask_top_k = ggml_view_4d(ctx0, kq_mask_top_k, kq_mask_top_k->ne[1], kq_mask_top_k->ne[2], 1, kq_mask_top_k->ne[3], kq_mask_top_k->nb[2], kq_mask_top_k->nb[3], kq_mask_top_k->nb[3], 0);
+-
+-    // combine with the original kq mask
+-    kq_mask_top_k = ggml_add(ctx0, kq_mask_top_k, kq_mask);
+-
+     ggml_tensor * q = q_cur;
+     ggml_tensor * k = mctx_cur->get_k(ctx0, il);
+     ggml_tensor * v = mctx_cur->get_v(ctx0, il);
+ 
+-    ggml_tensor * cur = build_attn_mha(q, k, v, nullptr, kq_mask_top_k, nullptr, nullptr, kq_scale, il);
++    static const bool enable_gathered = getenv("LLAMA_QSA_GATHERED") != nullptr;
++    static const bool force_legacy    = getenv("LLAMA_QSA_LEGACY_DENSE") != nullptr;
++    // Prompt-sized batches would materialize one compact K/V set per prompt
++    // token and can be larger than the dense prefill graph. The optimization
++    // is for decode and the existing small speculative-verification batches;
++    // keep the legacy path for wider prefill without changing ubatch policy.
++    const bool gathered_width = top_k->ne[1] <= 8;
++    const bool gathered = enable_gathered && !force_legacy && cparams.flash_attn && gathered_width &&
++        kq_mask->type == GGML_TYPE_F16 && v->nb[1] <= v->nb[2] &&
++        k->type == GGML_TYPE_Q8_0 && v->type == GGML_TYPE_Q8_0;
++
++    const auto build_legacy = [&]() {
++        // prepare new kq mask - starts filled with -INFINITY
++        ggml_tensor * kq_mask_all = ggml_fill(ctx0, kq_mask, -INFINITY);
++
++        // reshape KQ mask into tensor with rows of size 1:
++        // [n_kv, n_batch, 1, n_stream] -> [1, n_kv, n_batch, n_stream]
++        kq_mask_all = ggml_view_4d(ctx0, kq_mask_all, 1, kq_mask_all->ne[0], kq_mask_all->ne[1], kq_mask_all->ne[3], kq_mask_all->nb[0], kq_mask_all->nb[1], kq_mask_all->nb[2], 0);
++
++        // reshape top_k indices: [n_top_k, n_batch, 1, n_stream] -> [n_top_k, n_batch, n_stream, 1]
++        ggml_tensor * top_k_3d = ggml_view_4d(ctx0, top_k, top_k->ne[0], top_k->ne[1], top_k->ne[3], 1, top_k->nb[1], top_k->nb[2], top_k->ne[3]*top_k->nb[3], 0);
++
++        // prepare zero-filled tensor with rows of size 1: [1, n_top_k, n_batch, n_stream]
++        ggml_tensor * zeros = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, 1, top_k_3d->ne[0], top_k_3d->ne[1], top_k_3d->ne[2]);
++        zeros = ggml_fill(ctx0, zeros, 0.0f);
++
++        // modify KQ mask by unmasking elements that are in top_k indices
++        ggml_tensor * kq_mask_top_k = ggml_set_rows(ctx0, kq_mask_all, zeros, top_k_3d);
++
++        // reshape to restore the original shape of KQ mask and combine with it
++        kq_mask_top_k = ggml_view_4d(ctx0, kq_mask_top_k, kq_mask_top_k->ne[1], kq_mask_top_k->ne[2], 1, kq_mask_top_k->ne[3], kq_mask_top_k->nb[2], kq_mask_top_k->nb[3], kq_mask_top_k->nb[3], 0);
++        kq_mask_top_k = ggml_add(ctx0, kq_mask_top_k, kq_mask);
++        return build_attn_mha(q, k, v, nullptr, kq_mask_top_k, nullptr, nullptr, kq_scale, il);
++    };
++
++    ggml_tensor * cur = nullptr;
++    if (gathered) {
++        static bool logged = false;
++        if (!logged) {
++            LLAMA_LOG_INFO("qwen4exp: using experimental gathered sparse QSA target attention (LLAMA_QSA_GATHERED is set)\n");
++            logged = true;
++        }
++        cur = build_attn_qsa_gathered(q, k, v, kq_mask, top_k, kq_scale, il);
++        if (getenv("LLAMA_QSA_COMPARE") != nullptr) {
++            cb(cur, "qsa_compare_gathered", il);
++            ggml_tensor * legacy_cmp = build_legacy();
++            cb(legacy_cmp, "qsa_compare_legacy", il);
++            ggml_build_forward_expand(gf, legacy_cmp);
++        }
++    } else {
++        static bool logged = false;
++        if (!logged) {
++            const char * reason = force_legacy
++                ? " (LLAMA_QSA_LEGACY_DENSE is set)"
++                : !enable_gathered
++                    ? " (default; set LLAMA_QSA_GATHERED=1 to enable the experimental path)"
++                    : !cparams.flash_attn
++                        ? " (gathered path requires Flash Attention)"
++                        : !gathered_width
++                            ? " (prompt batch exceeds gathered decode width)"
++                            : " (incompatible K/V layout)";
++            LLAMA_LOG_INFO("qwen4exp: using legacy dense-masked QSA target attention%s\n", reason);
++            logged = true;
++        }
++
++        cur = build_legacy();
++    }
+     cb(cur, "kqv_out", il);
+ 
+     // the rotation is its own inverse, so undo it on the value side of the output

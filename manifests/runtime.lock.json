@@ -1,0 +1,87 @@
+{
+  "manifestVersion": "1.0.0",
+  "resolvedAtUtc": "2026-09-08T10:18:00Z",
+  "repository": "https://github.com/halo-box/strix-llama.cpp",
+  "branchAtResolution": "master",
+  "commit": "7449a0fe9710ab584c5f9a6d25e7a31eea2708b8",
+  "tree": "2b32b2e114a1b96523bdf20fdc469cf47fb63adf",
+  "patches": [
+    {
+      "path": "patches/llama.cpp/0007-halo-compact-shared-mtp-sidecar.patch",
+      "sha256": "efe66ec394731ae23d068de5bc5f3e610246124e1cf08c2eaeeBdcc0e2cd37a5"
+    },
+    {
+      "path": "patches/llama.cpp/0008-halo-mtp-request-state-lifecycle.patch",
+      "sha256": "c3e8e593abfce0845bbb0e077ab59db555272fe371022f7c0db740586063be93"
+    }
+  ],
+  "backend": "Vulkan",
+  "launchEnvironment": {
+    "GGML_VK_MMV_NO_SPLIT": "1"
+  },
+  "cmake": {
+    "generatorPolicy": "select the CMake Visual Studio generator matching the directly verified installed Visual Studio major and bind that exact instance",
+    "supportedGenerators": [
+      "Ninja with MSVC",
+      "Visual Studio 18 2026",
+      "Visual Studio 17 2022"
+    ],
+    "architecture": "x64",
+    "definitions": [
+      "GGML_VULKAN=ON",
+      "GGML_NATIVE=ON",
+      "LLAMA_CURL=OFF",
+      "LLAMA_BUILD_UI=OFF",
+      "LLAMA_BUILD_TESTS=OFF",
+      "LLAMA_BUILD_EXAMPLES=OFF",
+      "LLAMA_BUILD_HTML=OFF",
+      "BUILD_SHARED_LIBS=ON"
+    ],
+    "targets": [
+      "llama-server",
+      "llama-cli",
+      "llama-bench"
+    ]
+  },
+  "requiredHelpOptions": [
+    "-m",
+    "-md",
+    "-ngl",
+    "--n-gpu-layers-draft",
+    "--spec-type",
+    "--spec-draft-n-min",
+    "--spec-draft-n-max",
+    "--spec-draft-adaptive",
+    "--spec-draft-p-min",
+    "--spec-draft-device",
+    "--spec-draft-prio",
+    "--spec-draft-prio-batch",
+    "--spec-draft-type-k",
+    "--spec-draft-type-v",
+    "-fa",
+    "-ctk",
+    "-ctv",
+    "--device",
+    "--fit",
+    "--load-mode",
+    "--prio",
+    "--prio-batch",
+    "--no-context-shift",
+    "--mmproj",
+    "--image-min-tokens",
+    "--image-max-tokens",
+    "-c",
+    "--host",
+    "--port",
+    "--api-key-file",
+    "--metrics",
+    "--jinja",
+    "--chat-template-file",
+    "--no-agent",
+    "--no-ui",
+    "--cache-prompt",
+    "--parallel",
+    "--alias"
+  ],
+  "activationPolicy": "staging-smoke-test-atomic-switch-with-previous-slot"
+}

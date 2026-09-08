@@ -1,0 +1,41 @@
+.vs/
+.idea/
+.vscode/
+**/bin/
+**/obj/
+**/__pycache__/
+*.py[cod]
+
+# Generated build, test, publish, and benchmark data
+artifacts/
+.deployment/
+.build-verify/
+.test-temp/
+TestResults/
+coverage/
+publish/
+*.inventory.json
+*.zip
+*.7z
+
+# Runtime/model payloads are downloaded or built outside source control
+runtime/
+models/
+*.gguf
+*.safetensors
+*.onnx
+*.ckpt
+*.pth
+*.pt
+
+# Local environments, settings, and credentials
+.venv/
+api-key.txt
+secrets.json
+*.local.json
+.benchmark-api-key.txt
+.correctness-api-key.txt
+
+*.user
+*.suo
+*.log

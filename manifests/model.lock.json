@@ -1,0 +1,61 @@
+{
+  "manifestVersion": "1.1.0",
+  "repository": "unsloth/Qwen3.8-Flash-Next-GGUF",
+  "revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+  "resolvedAtUtc": "2026-09-08T02:35:00Z",
+  "firstShard": "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+  "mtpFile": "MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf",
+  "qualityDisclosure": "Unsloth Dynamic UD-Q4_K_XL production quant. Selected over the experimental ROCmFP4-FAST quant to preserve coding quality while retaining measured Vulkan performance on this machine.",
+  "visionIncluded": true,
+  "visionProjector": {
+    "repository": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+    "path": "mmproj-F16.gguf"
+  },
+  "minimumFreeGiB": 115,
+  "recommendedFreeGiB": 140,
+  "maxConcurrentLargeFiles": 2,
+  "metadataResolution": "Each expected byte count and SHA-256 is the published Git LFS identity at the immutable Hugging Face revision. Promotion is blocked until every downloaded file matches both values.",
+  "files": [
+    {
+      "path": "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+      "sha256": "4448186216b3af4cc558bbce2c3213f01608f8f8b2e5267a9767971dd3ec8082",
+      "expectedBytes": 10946624,
+      "kind": "target"
+    },
+    {
+      "path": "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf",
+      "sha256": "3f342f1c1580473f1ee94ddd5b28206e8c07a70fa1a366f59d1d6c922919a6c9",
+      "expectedBytes": 49859583136,
+      "kind": "target"
+    },
+    {
+      "path": "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf",
+      "sha256": "56758f40269cad5cd9b0d3d6fbae0f40f6d5be6de49e4ab392dbe83157d9cbd3",
+      "expectedBytes": 49376141504,
+      "kind": "target"
+    },
+    {
+      "path": "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf",
+      "sha256": "753bda48b98ba4f1636134a90a967de1b2d3908a236c026e464777342e53510a",
+      "expectedBytes": 12087983520,
+      "kind": "target"
+    },
+    {
+      "path": "MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf",
+      "sha256": "5ff54097406a905cf3a724c709124ceb0e3e10235ee862298969e91c96fa96e6",
+      "expectedBytes": 2786568256,
+      "kind": "mtp"
+    },
+    {
+      "path": "mmproj-F16.gguf",
+      "sha256": "1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980",
+      "expectedBytes": 904004000,
+      "kind": "mmproj"
+    }
+  ],
+  "metadataFiles": [
+    "README.md",
+    "LICENSE"
+  ]
+}

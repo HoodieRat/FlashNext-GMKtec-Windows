@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "activeProfile": "coding-balanced",
+  "paths": {
+    "modelDirectory": "",
+    "runtimeRoot": "%ProgramFiles%\\FlashNextManager\\runtime",
+    "dataRoot": "%LOCALAPPDATA%\\FlashNextManager"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "controlPort": 18081,
+    "startupTimeoutSeconds": 900,
+    "shutdownTimeoutSeconds": 20,
+    "parallelRequests": 1,
+    "batchSize": 2048,
+    "ubatchSize": 2048,
+    "gpuLayers": 99,
+    "draftGpuLayers": 99,
+    "metrics": true,
+    "jinja": true,
+    "agent": false,
+    "webUi": false,
+    "promptCache": true,
+    "specType": "draft-mtp",
+    "specDraftPMin": 0.75,
+    "visionDetail": "balanced",
+    "extraArguments": []
+  },
+  "profiles": {
+    "coding-balanced": {
+      "thinking": true,
+      "reasoningEffort": "medium",
+      "temperature": 1.0,
+      "topP": 0.95,
+      "topK": 20,
+      "minP": 0.0,
+      "presencePenalty": 0.0,
+      "repetitionPenalty": 1.0,
+      "maxOutputTokens": 32768,
+      "contextSize": 131072,
+      "mtpNMax": 6,
+      "seed": null
+    },
+    "chat-fast": {
+      "thinking": false,
+      "reasoningEffort": "none",
+      "temperature": 0.7,
+      "topP": 0.8,
+      "topK": 20,
+      "minP": 0.0,
+      "presencePenalty": 1.5,
+      "repetitionPenalty": 1.0,
+      "maxOutputTokens": 2048,
+      "contextSize": 131072,
+      "mtpNMax": 6,
+      "seed": null
+    },
+    "benchmark-deterministic": {
+      "thinking": false,
+      "reasoningEffort": "none",
+      "temperature": 0.0,
+      "topP": 1.0,
+      "topK": 1,
+      "minP": 0.0,
+      "presencePenalty": 0.0,
+      "repetitionPenalty": 1.0,
+      "maxOutputTokens": 250,
+      "contextSize": 32768,
+      "mtpNMax": 4,
+      "seed": 12345
+    },
+    "safe-fallback": {
+      "thinking": false,
+      "reasoningEffort": "none",
+      "temperature": 0.7,
+      "topP": 0.8,
+      "topK": 20,
+      "minP": 0.0,
+      "presencePenalty": 0.0,
+      "repetitionPenalty": 1.0,
+      "maxOutputTokens": 2048,
+      "contextSize": 16384,
+      "mtpNMax": 2,
+      "seed": null
+    }
+  },
+  "chat": {
+    "systemPrompt": "You are a precise, capable local assistant.",
+    "requestTimeoutSeconds": 1800,
+    "saveConversations": true,
+    "recordContentInLogs": false
+  },
+  "metrics": {
+    "writeJsonl": true,
+    "writeCsv": true,
+    "retentionDays": 30,
+    "includePromptOrResponse": false
+  },
+  "downloads": {
+    "minimumFreeGiB": 115,
+    "recommendedFreeGiB": 140,
+    "maxConcurrentLargeFiles": 2,
+    "cacheDirectory": "%LOCALAPPDATA%\\FlashNextManager\\download-cache"
+  },
+  "lan": {
+    "enabled": false,
+    "bindAddress": "127.0.0.1",
+    "allowedRemoteAddress": "LocalSubnet",
+    "corsOrigins": []
+  },
+  "updates": {
+    "automaticChecks": false,
+    "preservePreviousRuntime": true
+  }
+}

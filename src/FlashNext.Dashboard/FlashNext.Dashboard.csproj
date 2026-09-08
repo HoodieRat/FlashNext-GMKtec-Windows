@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>FlashNext.Dashboard</AssemblyName>
+    <RootNamespace>FlashNext.Dashboard</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>flashnext.ico</ApplicationIcon>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="flashnext.ico" />
+    <Content Include="flashnext.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlashNext.Core\FlashNext.Core.csproj" />
+    <ProjectReference Include="..\FlashNext.Infrastructure.Windows\FlashNext.Infrastructure.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\config\factory.settings.json" Link="config\factory.settings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\config\settings.schema.json" Link="config\settings.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\config\flashnext-chat.jinja" Link="config\flashnext-chat.jinja" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\manifests\*.json" Link="manifests\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\patches\llama.cpp\*.patch" Link="patches\llama.cpp\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,299 @@
+<Window x:Class="FlashNext.Dashboard.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlashNext"
+        Icon="pack://application:,,,/FlashNext.Dashboard;component/flashnext.ico"
+        Height="760" Width="1080"
+        MinHeight="560" MinWidth="760"
+        Background="{StaticResource Bg}"
+        PreviewKeyDown="WindowKeyDown">
+  <Window.Resources>
+    <Style x:Key="ReportGrid" TargetType="DataGrid">
+      <Setter Property="AutoGenerateColumns" Value="False"/>
+      <Setter Property="IsReadOnly" Value="True"/>
+      <Setter Property="CanUserAddRows" Value="False"/>
+      <Setter Property="SelectionMode" Value="Single"/>
+      <Setter Property="Background" Value="#12121A"/>
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="RowBackground" Value="#12121A"/>
+      <Setter Property="AlternatingRowBackground" Value="#1A1A24"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="HeadersVisibility" Value="Column"/>
+      <Setter Property="ColumnHeaderStyle">
+        <Setter.Value><Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#2A2A3A"/><Setter Property="Foreground" Value="{StaticResource Text}"/><Setter Property="Padding" Value="6"/></Style></Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="PanelResizeGrip" TargetType="GridSplitter">
+      <Setter Property="Height" Value="20"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="VerticalAlignment" Value="Stretch"/>
+      <Setter Property="ResizeDirection" Value="Rows"/>
+      <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+      <Setter Property="Cursor" Value="SizeNS"/>
+      <Setter Property="KeyboardIncrement" Value="10"/>
+      <Setter Property="ToolTip" Value="Drag up or down to resize these panels. You can also focus this bar and use the arrow keys."/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="GridSplitter">
+            <Border x:Name="Grip" Background="{StaticResource Line}" BorderBrush="{StaticResource Muted}" BorderThickness="0,1">
+              <TextBlock Text="↕  Drag to resize" Foreground="{StaticResource Accent}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="#555570"/></Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Grip" Property="Background" Value="#555570"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+  <DockPanel>
+    <Border DockPanel.Dock="Top" BorderBrush="#00EAFF" BorderThickness="0,0,0,2" Padding="18,12">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#171A2B" Offset="0"/>
+          <GradientStop Color="#111421" Offset="0.58"/>
+          <GradientStop Color="#20112E" Offset="1"/>
+        </LinearGradientBrush>
+      </Border.Background>
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Border Width="58" Height="58" CornerRadius="12" Background="#080A11" BorderBrush="{StaticResource Accent}" BorderThickness="1" Margin="0,0,14,0">
+          <Image Source="pack://siteoforigin:,,,/flashnext.png" Stretch="Uniform" Margin="4"/>
+        </Border>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="FLASHNEXT" FontSize="20" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+            <Border Background="#352044" BorderBrush="{StaticResource Accent2}" BorderThickness="1" CornerRadius="8" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+              <TextBlock Text="LOCAL AI" FontSize="10" FontWeight="Bold" Foreground="#DCA7FF"/>
+            </Border>
+          </StackPanel>
+          <TextBlock Text="{Binding StatusLine, Mode=OneWay}" Foreground="{StaticResource Muted}" Margin="0,4,0,0"/>
+          <TextBlock Text="{Binding LastError, Mode=OneWay}" Foreground="{StaticResource Danger}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+        </StackPanel>
+        <Border Grid.Column="2" Background="#0B0E18" BorderBrush="{StaticResource Accent}" BorderThickness="1" CornerRadius="10" Padding="14,7" Margin="20,0" MinWidth="190">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="{Binding LiveTpsState, Mode=OneWay}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding LiveTpsText, Mode=OneWay}" FontSize="30" FontWeight="Bold" Foreground="#FFFFFF" FontFamily="Segoe UI Variable Display"/>
+                <TextBlock Text=" tok/s" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="2,0,0,6"/>
+              </StackPanel>
+            </StackPanel>
+            <Ellipse Grid.Column="1" Width="10" Height="10" Fill="{StaticResource Accent}" VerticalAlignment="Top" Margin="10,5,0,0">
+              <Ellipse.Effect><DropShadowEffect Color="#00EAFF" BlurRadius="12" ShadowDepth="0" Opacity="0.9"/></Ellipse.Effect>
+            </Ellipse>
+          </Grid>
+        </Border>
+        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Content="Start" Click="StartClick"/>
+          <Button Content="Stop" Click="StopClick"/>
+          <Button Content="Restart" Click="RestartClick"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <TabControl x:Name="MainTabs" Margin="10" SelectionChanged="ReportsSelected">
+      <TabItem Header="Chat">
+        <DockPanel Margin="8">
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+            <Button DockPanel.Dock="Right" Content="New session" Click="NewChatClick" IsEnabled="{Binding CanChangeSession}"/>
+            <TextBlock Text="Session" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox ItemsSource="{Binding SessionNames}" SelectedItem="{Binding ActiveSession, Mode=OneWay}" SelectionChanged="SessionChanged" IsEnabled="{Binding CanChangeSession}" ToolTip="Saved conversations; select one to continue it."/>
+          </DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="{Binding ContextNote}" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*" MinHeight="120"/>
+            <RowDefinition Height="20"/>
+            <RowDefinition Height="2*" MinHeight="96"/>
+            <RowDefinition Height="20"/>
+            <RowDefinition Height="130" MinHeight="92"/>
+          </Grid.RowDefinitions>
+          <ScrollViewer x:Name="TranscriptScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="#12121A" BorderBrush="{StaticResource Line}" BorderThickness="1">
+            <ItemsControl x:Name="Transcript" ItemsSource="{Binding Messages}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Margin="12,10">
+                    <DockPanel LastChildFill="True">
+                      <Button DockPanel.Dock="Right" Content="Copy" Click="CopyMessageClick" Padding="10,4" Margin="8,0,0,0"/>
+                      <TextBlock Text="{Binding Role}" FontWeight="SemiBold" Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock Text="{Binding Status}" FontStyle="Italic" Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Setter Property="Visibility" Value="Visible"/>
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding Status}" Value="">
+                              <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                    <TextBox Text="{Binding Thinking, Mode=OneWay}">
+                      <TextBox.Style>
+                        <Style TargetType="TextBox" BasedOn="{StaticResource TranscriptText}">
+                          <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+                          <Setter Property="Visibility" Value="Visible"/>
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding Thinking}" Value="">
+                              <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBox.Style>
+                    </TextBox>
+                    <TextBox Text="{Binding Text, Mode=OneWay}">
+                      <TextBox.Style>
+                        <Style TargetType="TextBox" BasedOn="{StaticResource TranscriptText}">
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsError}" Value="True">
+                              <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBox.Style>
+                    </TextBox>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <GridSplitter x:Name="ChatMetricsSplitter" Grid.Row="1" Style="{StaticResource PanelResizeGrip}"/>
+          <Border Grid.Row="2" Background="#12121A" BorderBrush="{StaticResource Line}" BorderThickness="1">
+            <DockPanel Margin="10,8">
+              <TextBlock DockPanel.Dock="Top" Text="Run report" FontWeight="SemiBold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
+              <TextBox x:Name="RunReportPanel" Text="{Binding MetricsText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12" BorderThickness="0" Background="Transparent"/>
+            </DockPanel>
+          </Border>
+          <GridSplitter x:Name="MetricsInputSplitter" Grid.Row="3" Style="{StaticResource PanelResizeGrip}"/>
+          <DockPanel Grid.Row="4">
+            <TextBlock DockPanel.Dock="Top" Text="{Binding ChatProgress, Mode=OneWay}" Foreground="{StaticResource Accent}" Margin="0,0,0,6" TextWrapping="Wrap"/>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+              <Button Content="Attach Image" Click="AttachImageClick"/>
+              <Button Content="Clear image" Click="ClearImageClick" IsEnabled="{Binding HasAttachedImage}"/>
+              <Image Source="{Binding AttachedImagePreview}" Width="28" Height="28" Stretch="Uniform" Margin="6,0,4,0"/>
+              <TextBlock Text="{Binding AttachedImageName}" Foreground="{StaticResource Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="260"/>
+            </StackPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+              <Button Content="Copy last" Click="CopyLastClick"/>
+              <Button Content="Save last" Click="SaveLastClick"/>
+              <Button Content="Stop reply" Click="StopChatClick" IsEnabled="{Binding CanStopChat}"/>
+              <Button Content="Send" Click="SendClick" IsEnabled="{Binding CanSend}"/>
+            </StackPanel>
+            <TextBox x:Name="DraftBox" Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsChatBusy}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" PreviewKeyDown="DraftKeyDown" VerticalScrollBarVisibility="Auto"/>
+          </DockPanel>
+        </Grid>
+        </DockPanel>
+      </TabItem>
+      <TabItem Header="Server">
+        <DockPanel Margin="12">
+          <TextBlock DockPanel.Dock="Top" Text="{Binding TelemetryText, Mode=OneWay}" Foreground="{StaticResource Muted}" Margin="0,0,0,8"/>
+          <TextBlock DockPanel.Dock="Top" Text="{Binding Endpoint, Mode=OneWay}" Foreground="{StaticResource Accent}" Margin="0,0,0,8"/>
+          <TextBox Text="{Binding ServerLog, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12" Background="#12121A"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem Header="Settings">
+        <ScrollViewer Margin="12">
+          <StackPanel MaxWidth="520">
+            <TextBlock Text="Profile" Foreground="{StaticResource Muted}"/>
+            <ComboBox ItemsSource="{Binding ProfileNames}" SelectedItem="{Binding ActiveProfile}" Margin="0,4,0,12"/>
+            <TextBlock Text="MTP (restart required)" Foreground="{StaticResource Muted}"/>
+            <ComboBox ItemsSource="{Binding MtpModes}" DisplayMemberPath="DisplayName" SelectedValuePath="Value" SelectedValue="{Binding MtpMode, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+            <TextBlock Text="MTP Draft Confidence" Foreground="{StaticResource Muted}"/>
+            <TextBlock Text="Advanced MTP performance · Spec Draft P-Min · restart required" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"/>
+            <ComboBox ItemsSource="{Binding DraftConfidences}" DisplayMemberPath="DisplayName" SelectedValuePath="Value" SelectedValue="{Binding SpecDraftPMin, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="MTP Draft Confidence" Margin="0,4,0,8"/>
+            <TextBlock Text="Stops extending an MTP draft when draft-token confidence falls below this threshold. Higher values can reduce wasted speculative work at deeper MTP settings." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+            <TextBlock Text="Applies to Fixed and Adaptive MTP. Separate from sampler Min-P." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+            <TextBlock Text="Vision Detail" Foreground="{StaticResource Muted}"/>
+            <ComboBox ItemsSource="{Binding VisionDetails}" DisplayMemberPath="DisplayName" SelectedValuePath="Value" SelectedValue="{Binding VisionDetail, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+            <TextBlock Text="Batch (restart required)" Foreground="{StaticResource Muted}"/>
+            <ComboBox ItemsSource="{Binding BatchSizes}" SelectedItem="{Binding BatchSize, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+            <TextBlock Text="UBatch (restart required; ≤ Batch)" Foreground="{StaticResource Muted}"/>
+            <ComboBox ItemsSource="{Binding UBatchSizes}" SelectedItem="{Binding UBatchSize, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+            <CheckBox Content="Thinking" IsChecked="{Binding Thinking}"/>
+            <TextBlock Text="Reasoning effort" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <ComboBox ItemsSource="{Binding ReasoningEfforts}" SelectedItem="{Binding ReasoningEffort}" Margin="0,4,0,0"/>
+            <TextBlock Text="Temperature" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <!-- Commit numeric edits after typing so intermediate text such as 1. or - survives. -->
+            <TextBox Text="{Binding Temperature, UpdateSourceTrigger=LostFocus}"/>
+            <TextBlock Text="Top-p" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding TopP, UpdateSourceTrigger=LostFocus}"/>
+            <TextBlock Text="Top-k" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding TopK, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="Min-p" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding MinP, UpdateSourceTrigger=LostFocus}"/>
+            <TextBlock Text="Presence penalty" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding PresencePenalty, UpdateSourceTrigger=LostFocus}"/>
+            <TextBlock Text="Repetition penalty" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding RepetitionPenalty, UpdateSourceTrigger=LostFocus}"/>
+            <TextBlock Text="Max output tokens" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding MaxOutputTokens, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="Context size" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding ContextSize, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="Inference port" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding InferencePort, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="Seed (blank = random)" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding SeedText, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="System prompt" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/>
+            <TextBox Text="{Binding SystemPrompt, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80"/>
+            <TextBlock Margin="0,16,0,8" Foreground="{StaticResource Accent}" Text="{Binding SettingsNote, Mode=OneWay}" TextWrapping="Wrap"/>
+            <StackPanel Orientation="Horizontal">
+              <Button Content="Reset active profile" Click="ResetProfileClick"/>
+              <Button Content="Save" Click="SaveClick"/>
+              <Button Content="Restart now" Click="RestartClick"/>
+            </StackPanel>
+            <TextBlock Margin="0,10,0,16" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Text="No restart: thinking, reasoning effort, temperature, top-p/k, min-p, penalties, max tokens, seed, system prompt. Restart needed (reloads the model): MTP mode, MTP Draft Confidence, Vision Detail, batch size, UBatch, context, and inference port."/>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="ReportsTab" Header="Reports">
+        <Grid Margin="12">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*" MinHeight="85"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="1.5*" MinHeight="110"/><RowDefinition Height="Auto"/><RowDefinition Height="1.5*" MinHeight="100"/>
+          </Grid.RowDefinitions>
+          <DockPanel Margin="0,0,0,6">
+            <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshReportsClick"/>
+            <TextBlock Text="Search sessions / prompts" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox x:Name="ReportSearchBox" Text="{Binding ReportSearch, UpdateSourceTrigger=PropertyChanged}"/>
+          </DockPanel>
+          <TextBlock Grid.Row="1" Text="{Binding ReportsNotice}" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+          <DataGrid x:Name="ReportSessionsGrid" Grid.Row="2" Style="{StaticResource ReportGrid}" ItemsSource="{Binding ReportSessions}" SelectedItem="{Binding SelectedReportSession}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Session" Binding="{Binding Name}" Width="2*"/>
+              <DataGridTextColumn Header="Runs" Binding="{Binding RunCount}" Width="55"/>
+              <DataGridTextColumn Header="Best rated completed run" Binding="{Binding Best}" Width="3*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <GridSplitter Grid.Row="3" Height="6" HorizontalAlignment="Stretch" Background="{StaticResource Line}" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"/>
+          <DataGrid x:Name="ReportRunsGrid" Grid.Row="4" Style="{StaticResource ReportGrid}" ItemsSource="{Binding ReportRuns}" SelectedItem="{Binding SelectedReportRun}">
+            <DataGrid.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="4"/></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></DataGrid.GroupStyle>
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Started" Binding="{Binding Started, StringFormat=g}" Width="135"/>
+              <DataGridTextColumn Header="Prompt" Binding="{Binding Prompt}" Width="*"/>
+              <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
+              <DataGridTextColumn Header="Rating" Binding="{Binding RatingValue}" Width="65"/>
+              <DataGridTextColumn Header="TG tok/s" Binding="{Binding GenerationSpeed, StringFormat=0.0, TargetNullValue=N/A}" Width="75"/>
+              <DataGridTextColumn Header="Eff tok/s" Binding="{Binding EffectiveSpeed, StringFormat=0.0, TargetNullValue=N/A}" Width="75"/>
+              <DataGridTextColumn Header="MTP" Binding="{Binding Mtp}" Width="100"/>
+              <DataGridTextColumn Header="Batch/UBatch" Binding="{Binding Batch}" Width="100"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,6">
+            <TextBlock Text="Quality rating (0 = unrated)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="ReportRatingBox" Width="70" ItemsSource="{Binding Ratings}" SelectedItem="{Binding SelectedReportRun.RatingValue, Mode=OneWay}" SelectionChanged="ReportRatingChanged"/>
+            <Button Content="Open in chat" Click="OpenReportClick" Margin="12,0,0,0" IsEnabled="{Binding CanChangeSession}"/>
+          </StackPanel>
+          <TextBox Grid.Row="6" Text="{Binding SelectedReportDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas"/>
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

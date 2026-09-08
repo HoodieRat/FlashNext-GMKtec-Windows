@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.20)
+project(FlashNextTemplateCheck LANGUAGES CXX)
+add_executable(template-check main.cpp)
+target_compile_features(template-check PRIVATE cxx_std_17)
+target_include_directories(template-check PRIVATE "${LLAMA_SOURCE}/common" "${LLAMA_SOURCE}/include" "${LLAMA_SOURCE}/ggml/include" "${LLAMA_SOURCE}/vendor")
+target_link_libraries(template-check PRIVATE "${LLAMA_BUILD}/common/llama-common.lib")

@@ -1,0 +1,79 @@
+diff --git a/common/speculative.cpp b/common/speculative.cpp
+--- a/common/speculative.cpp
++++ b/common/speculative.cpp
+@@ -1600,6 +1600,55 @@ struct common_speculative_impl_draft_mtp : public common_speculative_impl {
+         }
+     }
+ 
++    bool get_state(llama_seq_id seq_id, std::vector<uint8_t> & data) const override {
++        if (seq_id < 0 || seq_id >= (llama_seq_id) n_seq) {
++            return false;
++        }
++
++        const uint32_t state_magic   = 0x4d545048; // "MTPH"
++        const uint32_t state_version = 1;
++        const uint32_t state_width   = (uint32_t) n_embd;
++        const size_t header_size = 3 * sizeof(uint32_t);
++        const size_t row_size    = (size_t) n_embd * sizeof(float);
++
++        data.resize(header_size + row_size);
++        std::memcpy(data.data(),                        &state_magic,   sizeof(state_magic));
++        std::memcpy(data.data() + sizeof(uint32_t),     &state_version, sizeof(state_version));
++        std::memcpy(data.data() + 2 * sizeof(uint32_t), &state_width,   sizeof(state_width));
++        std::memcpy(data.data() + header_size, pending_h[seq_id].data(), row_size);
++        return true;
++    }
++
++    void set_state(llama_seq_id seq_id, const std::vector<uint8_t> & data) override {
++        if (seq_id < 0 || seq_id >= (llama_seq_id) n_seq) {
++            return;
++        }
++
++        const uint32_t expected_magic = 0x4d545048; // "MTPH"
++        const size_t header_size = 3 * sizeof(uint32_t);
++        const size_t row_size    = (size_t) n_embd * sizeof(float);
++        if (data.size() != header_size + row_size) {
++            return;
++        }
++
++        uint32_t state_magic   = 0;
++        uint32_t state_version = 0;
++        uint32_t state_width   = 0;
++        std::memcpy(&state_magic,   data.data(),                        sizeof(state_magic));
++        std::memcpy(&state_version, data.data() + sizeof(uint32_t),     sizeof(state_version));
++        std::memcpy(&state_width,   data.data() + 2 * sizeof(uint32_t), sizeof(state_width));
++        if (state_magic != expected_magic || state_version != 1 || state_width != (uint32_t) n_embd) {
++            return;
++        }
++
++        std::memcpy(pending_h[seq_id].data(), data.data() + header_size, row_size);
++        verify_h[seq_id].clear();
++        verify_h_rows[seq_id] = 0;
++        if (chain_heads) {
++            chain_h[seq_id].clear();
++        }
++    }
++
+     bool process(const llama_batch & batch_in) override {
+         if (batch_in.n_tokens <= 0) {
+             return true;
+@@ -1662,6 +1711,18 @@ struct common_speculative_impl_draft_mtp : public common_speculative_impl {
+             for (llama_seq_id seq_id = 0; seq_id < (llama_seq_id) n_seq; ++seq_id) {
+                 if (i_batch_beg[seq_id] < 0) {
+                     continue;
+                 }
+ 
++                // A full prompt re-evaluation starts a new recurrent stream.  Do not
++                // seed its first MTP row with the hidden state left by the previous
++                // request that occupied this server slot.
++                if (batch_in.pos[i_batch_beg[seq_id]] == 0) {
++                    std::fill(pending_h[seq_id].begin(), pending_h[seq_id].end(), 0.0f);
++                    verify_h[seq_id].clear();
++                    verify_h_rows[seq_id] = 0;
++                    if (chain_heads) {
++                        chain_h[seq_id].clear();
++                    }
++                }
++
+                 set_h(i_batch_beg[seq_id], pending_h[seq_id].data());
+             }

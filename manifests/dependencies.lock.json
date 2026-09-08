@@ -1,0 +1,81 @@
+{
+  "manifestVersion": "1.0.5",
+  "resolvedAtUtc": "2026-08-27T22:09:21Z",
+  "wingetSource": "winget",
+  "packages": [
+    {
+      "name": "Git",
+      "id": "Git.Git",
+      "version": "2.55.0.3",
+      "manifestCommit": "b99f6296dc9ae795d3f71d84dcc7b6caea91c5f6",
+      "publisherContains": "Git Development Community",
+      "minimumVersion": "2.55.0.3",
+      "verificationKind": "git-cli-version"
+    },
+    {
+      "name": "CMake",
+      "id": "Kitware.CMake",
+      "version": "4.4.2",
+      "manifestCommit": "b3e53ed7f955a128c88cd2e2629626698d0f1e1e",
+      "publisherContains": "Kitware",
+      "minimumVersion": "4.4.2",
+      "verificationKind": "cmake-cli-version"
+    },
+    {
+      "name": "Python 3.13",
+      "id": "Python.Python.3.13",
+      "version": "3.13.15",
+      "manifestCommit": "bd1bc9b76194f44e99152fdaff2a1f7f90829c25",
+      "publisherContains": "Python Software Foundation",
+      "minimumVersion": "3.13.15",
+      "verificationKind": "python-313-x64-runtime"
+    },
+    {
+      "name": ".NET SDK 10",
+      "id": "Microsoft.DotNet.SDK.10",
+      "version": "10.0.400",
+      "manifestCommit": "00f8b33a8c1f8fa839194b8e3b1afd3d5f81fd86",
+      "publisherContains": "Microsoft",
+      "minimumVersion": "10.0.400",
+      "verificationKind": "dotnet-sdk-inventory"
+    },
+    {
+      "name": "Visual Studio Build Tools",
+      "id": "Microsoft.VisualStudio.2022.BuildTools",
+      "version": "17.14.38",
+      "manifestCommit": "43e61bdadae7773bf3de679e0359a1ae811f43bf",
+      "publisherContains": "Microsoft",
+      "override": "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended",
+      "minimumVersion": "17.14.0",
+      "verificationKind": "vswhere-vctools-cl-windows-sdk"
+    },
+    {
+      "name": "Vulkan SDK",
+      "id": "KhronosGroup.VulkanSDK",
+      "version": "1.4.357.0",
+      "manifestCommit": "0feb121808fb039de6f9c3e9b062bedf280ade2f",
+      "publisherContains": "LunarG",
+      "minimumVersion": "1.4.357.0",
+      "verificationKind": "vulkan-sdk-glslc-header-library"
+    }
+  ],
+  "python": [
+    {
+      "name": "huggingface_hub",
+      "version": "1.28.0"
+    },
+    {
+      "name": "hf_xet",
+      "version": "1.6.0"
+    }
+  ],
+  "nuget": {
+    "Spectre.Console": "0.54.0",
+    "System.Management": "10.0.1",
+    "Microsoft.NET.Test.Sdk": "18.9.0",
+    "xunit": "2.9.3",
+    "xunit.runner.visualstudio": "3.1.5",
+    "coverlet.collector": "10.0.1"
+  },
+  "verification": "WinGet resolves the exact package ID/version from the official winget source and enforces its manifest installer hash. FlashNext then verifies the installed capability directly through the executable, architecture, compiler/workload, SDK build files, and normalized version. For the Windows Vulkan SDK, build completeness requires glslc, headers, and vulkan-1.lib; hardware enumeration resolves the official vulkaninfoSDK.exe name with vulkaninfo.exe as an IHV/runtime fallback. Human-formatted winget list output is diagnostic only and never decides success."
+}

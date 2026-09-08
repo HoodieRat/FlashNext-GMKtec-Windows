@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "flashnext": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "FlashNext Local",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1",
+        "apiKey": "{env:FLASHNEXT_API_KEY}"
+      },
+      "models": {
+        "Qwen3.8-Flash-Next": {
+          "name": "Qwen3.8 Flash Next (local)",
+          "limit": { "context": 32768, "output": 4096 }
+        }
+      }
+    }
+  },
+  "model": "flashnext/Qwen3.8-Flash-Next"
+}

@@ -1,0 +1,303 @@
+diff --git a/src/llama-ple-disk.cpp b/src/llama-ple-disk.cpp
+index dfc118c..fc55348 100644
+--- a/src/llama-ple-disk.cpp
++++ b/src/llama-ple-disk.cpp
+@@ -12,7 +12,13 @@
+ #include <thread>
+ #include <vector>
+ 
+-#if !defined(_WIN32)
++#if defined(_WIN32)
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++#include <malloc.h>
++#else
+ #include <cerrno>
+ #include <fcntl.h>
+ #include <unistd.h>
+@@ -20,7 +26,12 @@
+ 
+ struct llama_ple_disk::impl {
+     std::string fname;
++#if defined(_WIN32)
++    HANDLE      fd     = INVALID_HANDLE_VALUE;
++    HANDLE      event0 = nullptr;
++#else
+     int         fd     = -1;
++#endif
+     bool        direct = false;
+     size_t      offs   = 0;
+     ggml_type   type   = GGML_TYPE_COUNT;
+@@ -60,9 +71,6 @@ struct llama_ple_disk::impl {
+ 
+     impl(const std::string & fname, size_t offs, ggml_type type, int64_t ne0, int64_t nrows, const params & p)
+         : fname(fname), offs(offs), type(type), ne0(ne0), nrows(nrows) {
+-#if defined(_WIN32)
+-        throw std::runtime_error("llama_ple_disk: not supported on Windows");
+-#else
+         if (ggml_is_quantized(type) && ne0 % ggml_blck_size(type) != 0) {
+             throw std::runtime_error(format("llama_ple_disk: row of %lld %s elements is not a whole number of blocks",
+                                             (long long) ne0, ggml_type_name(type)));
+@@ -76,6 +84,46 @@ struct llama_ple_disk::impl {
+         }
+ 
+         direct = p.direct_io;
++#if defined(_WIN32)
++        const int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, fname.c_str(), -1, nullptr, 0);
++        if (wlen <= 0) {
++            throw std::runtime_error(format("llama_ple_disk: invalid UTF-8 path %s (Windows error %lu)",
++                                            fname.c_str(), (unsigned long) GetLastError()));
++        }
++        std::vector<wchar_t> wfname((size_t) wlen);
++        if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, fname.c_str(), -1, wfname.data(), wlen) == 0) {
++            throw std::runtime_error(format("llama_ple_disk: failed to convert path %s (Windows error %lu)",
++                                            fname.c_str(), (unsigned long) GetLastError()));
++        }
++
++        const DWORD base_flags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED | FILE_FLAG_RANDOM_ACCESS;
++        if (direct) {
++            fd = CreateFileW(wfname.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
++                             base_flags | FILE_FLAG_NO_BUFFERING, nullptr);
++            if (fd == INVALID_HANDLE_VALUE) {
++                LLAMA_LOG_WARN("%s: unbuffered open of %s failed (Windows error %lu); falling back to buffered reads\n",
++                               __func__, fname.c_str(), (unsigned long) GetLastError());
++                direct = false;
++            }
++        }
++        if (fd == INVALID_HANDLE_VALUE) {
++            fd = CreateFileW(wfname.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, base_flags, nullptr);
++            if (fd == INVALID_HANDLE_VALUE) {
++                throw std::runtime_error(format("llama_ple_disk: failed to open %s (Windows error %lu)",
++                                                fname.c_str(), (unsigned long) GetLastError()));
++            }
++        }
++
++        FILE_ALIGNMENT_INFO alignment = {};
++        if (direct && GetFileInformationByHandleEx(fd, FileAlignmentInfo, &alignment, sizeof(alignment))) {
++            block = std::max(block, (size_t) alignment.AlignmentRequirement + 1);
++        }
++        if ((block & (block - 1)) != 0) {
++            CloseHandle(fd);
++            fd = INVALID_HANDLE_VALUE;
++            throw std::runtime_error(format("llama_ple_disk: unsupported Windows I/O alignment %zu", block));
++        }
++#else
+         if (direct) {
+             fd = open(fname.c_str(), O_RDONLY | O_DIRECT | O_CLOEXEC);
+             if (fd < 0) {
+@@ -90,6 +138,7 @@ struct llama_ple_disk::impl {
+                 throw std::runtime_error(format("llama_ple_disk: failed to open %s: %s", fname.c_str(), strerror(errno)));
+             }
+         }
++#endif
+ 
+         n_threads = std::max<int32_t>(1, p.n_threads);
+ 
+@@ -103,11 +152,9 @@ struct llama_ple_disk::impl {
+             tags.assign(n_slots, -1);
+             slab.resize(n_slots * rs);
+         }
+-#endif
+     }
+ 
+     ~impl() {
+-#if !defined(_WIN32)
+         {
+             std::lock_guard<std::mutex> lk(pm);
+             stop = true;
+@@ -116,6 +163,15 @@ struct llama_ple_disk::impl {
+         for (auto & w : workers) {
+             w.join();
+         }
++#if defined(_WIN32)
++        if (event0 != nullptr) {
++            CloseHandle(event0);
++        }
++        _aligned_free(bounce0);
++        if (fd != INVALID_HANDLE_VALUE) {
++            CloseHandle(fd);
++        }
++#else
+         free(bounce0);
+         if (fd >= 0) {
+             close(fd);
+@@ -123,23 +179,65 @@ struct llama_ple_disk::impl {
+ #endif
+     }
+ 
+-#if !defined(_WIN32)
+     size_t bounce_size() const {
+         return ((rs + block - 1) / block) * block + 2 * block;
+     }
+ 
+     uint8_t * alloc_bounce() const {
++#if defined(_WIN32)
++        void * ptr = _aligned_malloc(bounce_size(), block);
++        if (ptr == nullptr) {
++            throw std::runtime_error("llama_ple_disk: _aligned_malloc failed");
++        }
++#else
+         void * ptr = nullptr;
+         if (posix_memalign(&ptr, block, bounce_size()) != 0) {
+             throw std::runtime_error("llama_ple_disk: posix_memalign failed");
+         }
++#endif
+         return (uint8_t *) ptr;
+     }
+ 
++    void free_bounce(uint8_t * ptr) const {
++#if defined(_WIN32)
++        _aligned_free(ptr);
++#else
++        free(ptr);
++#endif
++    }
++
+     // read `len` bytes at `off` into `dst`; a short read is only tolerated past `need`
+-    void pread_full(uint8_t * dst, size_t len, off_t off, size_t need) const {
++    void pread_full(uint8_t * dst, size_t len, uint64_t off, size_t need, void * io_event) const {
+         size_t got = 0;
+         while (got < len) {
++#if defined(_WIN32)
++            OVERLAPPED ov = {};
++            const uint64_t pos = off + got;
++            ov.Offset     = (DWORD) (pos & 0xffffffffu);
++            ov.OffsetHigh = (DWORD) (pos >> 32);
++            ov.hEvent     = (HANDLE) io_event;
++            ResetEvent(ov.hEvent);
++
++            const DWORD requested = (DWORD) std::min<size_t>(len - got, MAXDWORD);
++            DWORD nread = 0;
++            BOOL ok = ReadFile(fd, dst + got, requested, &nread, &ov);
++            DWORD error = ok ? ERROR_SUCCESS : GetLastError();
++            if (!ok && error == ERROR_IO_PENDING) {
++                ok = GetOverlappedResult(fd, &ov, &nread, TRUE);
++                error = ok ? ERROR_SUCCESS : GetLastError();
++            }
++            if (!ok) {
++                if (error == ERROR_HANDLE_EOF) {
++                    break;
++                }
++                GGML_ABORT("llama_ple_disk: ReadFile(%s, %zu @ %llu) failed: Windows error %lu",
++                           fname.c_str(), len, (unsigned long long) off, (unsigned long) error);
++            }
++            if (nread == 0) {
++                break;
++            }
++            got += (size_t) nread;
++#else
+             const ssize_t r = pread(fd, dst + got, len - got, off + (off_t) got);
+             if (r < 0) {
+                 if (errno == EINTR) {
+@@ -152,28 +250,38 @@ struct llama_ple_disk::impl {
+                 break; // EOF
+             }
+             got += (size_t) r;
++#endif
+         }
+         if (got < need) {
+-            GGML_ABORT("llama_ple_disk: short read in %s: %zu of %zu bytes at %lld",
+-                       fname.c_str(), got, need, (long long) off);
++            GGML_ABORT("llama_ple_disk: short read in %s: %zu of %zu bytes at %llu",
++                       fname.c_str(), got, need, (unsigned long long) off);
+         }
+     }
+ 
+-    void read_row(int64_t row, uint8_t * dst, uint8_t * bounce) const {
+-        const off_t off = (off_t) offs + (off_t) row * (off_t) rs;
++    void read_row(int64_t row, uint8_t * dst, uint8_t * bounce, void * io_event) const {
++        const uint64_t off = (uint64_t) offs + (uint64_t) row * (uint64_t) rs;
+         if (!direct) {
+-            pread_full(dst, rs, off, rs);
++            pread_full(dst, rs, off, rs, io_event);
+             return;
+         }
+-        const off_t  a0   = off & ~(off_t) (block - 1);
++        const uint64_t a0   = off & ~(uint64_t) (block - 1);
+         const size_t need = (size_t) (off - a0) + rs;
+         const size_t len  = ((need + block - 1) / block) * block;
+-        pread_full(bounce, len, a0, need);
++        pread_full(bounce, len, a0, need, io_event);
+         memcpy(dst, bounce + (off - a0), rs);
+     }
+ 
+     void worker() {
+         uint8_t * bounce = direct ? alloc_bounce() : nullptr;
++#if defined(_WIN32)
++        HANDLE event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
++        if (event == nullptr) {
++            GGML_ABORT("llama_ple_disk: CreateEventW failed: Windows error %lu", (unsigned long) GetLastError());
++        }
++        void * io_event = event;
++#else
++        void * io_event = nullptr;
++#endif
+         uint64_t  seen   = 0;
+         for (;;) {
+             {
+@@ -189,7 +297,7 @@ struct llama_ple_disk::impl {
+                 if (i >= misses.size()) {
+                     break;
+                 }
+-                read_row(misses[i].first, raw.data() + (size_t) misses[i].second * rs, bounce);
++                read_row(misses[i].first, raw.data() + (size_t) misses[i].second * rs, bounce, io_event);
+             }
+             {
+                 std::lock_guard<std::mutex> lk(pm);
+@@ -198,7 +306,10 @@ struct llama_ple_disk::impl {
+                 }
+             }
+         }
+-        free(bounce);
++#if defined(_WIN32)
++        CloseHandle(event);
++#endif
++        free_bounce(bounce);
+     }
+ 
+     void run_misses() {
+@@ -206,8 +317,20 @@ struct llama_ple_disk::impl {
+             if (direct && bounce0 == nullptr) {
+                 bounce0 = alloc_bounce();
+             }
++#if defined(_WIN32)
++            if (event0 == nullptr) {
++                event0 = CreateEventW(nullptr, TRUE, FALSE, nullptr);
++                if (event0 == nullptr) {
++                    throw std::runtime_error(format("llama_ple_disk: CreateEventW failed: Windows error %lu",
++                                                    (unsigned long) GetLastError()));
++                }
++            }
++            void * io_event = event0;
++#else
++            void * io_event = nullptr;
++#endif
+             for (const auto & m : misses) {
+-                read_row(m.first, raw.data() + (size_t) m.second * rs, bounce0);
++                read_row(m.first, raw.data() + (size_t) m.second * rs, bounce0, io_event);
+             }
+             return;
+         }
+@@ -283,7 +406,6 @@ struct llama_ple_disk::impl {
+         st_bytes += misses.size() * (direct ? block : rs);
+         st_ms    += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+     }
+-#endif
+ };
+ 
+ llama_ple_disk::llama_ple_disk(const std::string & fname, size_t offs, ggml_type type, int64_t ne0, int64_t nrows, const params & p)
+@@ -299,12 +421,7 @@ llama_ple_disk::~llama_ple_disk() {
+ }
+ 
+ void llama_ple_disk::gather(const int32_t * idx, size_t n, float * dst) {
+-#if defined(_WIN32)
+-    GGML_UNUSED(idx); GGML_UNUSED(n); GGML_UNUSED(dst);
+-    GGML_ABORT("llama_ple_disk: not supported on Windows");
+-#else
+     pimpl->gather(idx, n, dst);
+-#endif
+ }
+ 
+ int64_t llama_ple_disk::n_rows()   const { return pimpl->nrows; }

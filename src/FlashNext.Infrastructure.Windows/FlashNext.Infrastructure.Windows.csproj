@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>FlashNext.Infrastructure.Windows</AssemblyName>
+    <RootNamespace>FlashNext.Infrastructure.Windows</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlashNext.Core\FlashNext.Core.csproj" />
+    <PackageReference Include="System.Management" />
+  </ItemGroup>
+</Project>

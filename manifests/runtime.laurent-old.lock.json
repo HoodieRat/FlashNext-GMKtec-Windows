@@ -1,0 +1,39 @@
+{
+  "manifestVersion": "1.0.0",
+  "status": "old-preserved-not-active",
+  "preservedAtUtc": "2026-09-08T08:05:00Z",
+  "resolvedAtUtc": "2026-08-30T16:50:44Z",
+  "repository": "https://github.com/LaurentZuijdwijk/llama.cpp",
+  "branchAtResolution": "vulkan/qwen4exp-rocmfpx",
+  "commit": "9a6f17ec8261712f755446f9ba1c2850ee0e5356",
+  "tree": "78ecd866835f6ba1db2e0aa74ac43a6322a10887",
+  "preservedArtifact": "artifacts/runtime-candidate (old Laurent)",
+  "patches": [
+    {
+      "path": "patches/llama.cpp/0001-mtp-request-state-lifecycle.patch",
+      "sha256": "996e24e650bc828d50738ef73b2393ac295f4128d9b79f0c43b2ebb14698c4a4"
+    },
+    {
+      "path": "patches/llama.cpp/0002-qwen4exp-gathered-qsa-vulkan.patch",
+      "sha256": "c71fb8f141309bf2b49a552065c9d20966cc5350f7e17c6a6a670171ae563985"
+    },
+    {
+      "path": "patches/llama.cpp/0003-gdn-reference-normalization.patch",
+      "sha256": "204c5d2ca56e72b01c70e64a7c1b983b175a2546737916a6c7791ee05339d842"
+    },
+    {
+      "path": "patches/llama.cpp/0004-server-recurrent-cache-trim.patch",
+      "sha256": "2deb4e914591d335378ddd030d739a840be3b663abc2fb8beefb8096fc6cfce7"
+    },
+    {
+      "path": "patches/llama.cpp/0005-windows-ple-direct-io.patch",
+      "sha256": "b237eb585001466baedb0f33997820395dbf353988c4398b1de49f5aaac94e08"
+    },
+    {
+      "path": "patches/llama.cpp/0006-qwen4exp-shared-mtp-sidecar.patch",
+      "sha256": "879fe9603ce33ae8fd9d3b5414567ef8432b8bca6607d786a30affb3c8b4d621"
+    }
+  ],
+  "backend": "Vulkan",
+  "activationPolicy": "preserved rollback only; Laurent work stopped by user direction"
+}

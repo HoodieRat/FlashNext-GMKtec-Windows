@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>FlashNext.Core</AssemblyName>
+    <RootNamespace>FlashNext.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlashNext.UnitTests" />
+  </ItemGroup>
+</Project>

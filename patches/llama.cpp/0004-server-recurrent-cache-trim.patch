@@ -1,0 +1,46 @@
+diff --git a/tools/server/server-context.cpp b/tools/server/server-context.cpp
+index a4f6788f4..36f1db28f 100644
+--- a/tools/server/server-context.cpp
++++ b/tools/server/server-context.cpp
+@@ -3331,6 +3331,41 @@ private:
+                             }
+                         }
+ 
++                        // Reusing a prompt can require discarding the generated tail from the
++                        // previous request. Hybrid/recurrent memories only keep n_rs_seq rollback
++                        // planes; asking seq_rm() for a longer partial trim aborts in common_memory.
++                        // This also affects non-speculative serving, where n_rs_seq is zero. Drop
++                        // the cached prefix before any trim when either context cannot represent
++                        // the requested rollback, so the normal p0=0 removal cleanly resets the
++                        // sequence and the request is reprocessed without stale recurrent state.
++                        if (n_past > 0) {
++                            const llama_pos cache_pos_next = slot.prompt.tokens.pos_next(n_past);
++
++                            const auto needs_full_reprocess = [&](llama_context * ctx, common_context_seq_rm_type rm_type) {
++                                if (ctx == nullptr) {
++                                    return false;
++                                }
++
++                                const llama_pos pos_max = llama_memory_seq_pos_max(llama_get_memory(ctx), slot.id);
++                                const llama_pos rollback = pos_max >= cache_pos_next ? pos_max - cache_pos_next + 1 : 0;
++
++                                return rollback > 0 && (
++                                        rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL ||
++                                       (rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS && rollback > (llama_pos) llama_n_rs_seq(ctx)));
++                            };
++
++                            const bool reset_tgt = needs_full_reprocess(ctx_tgt, ctx_tgt_seq_rm_type);
++                            const bool reset_dft = needs_full_reprocess(ctx_dft, ctx_dft_seq_rm_type);
++                            if (reset_tgt || reset_dft) {
++                                SLT_TRC(slot,
++                                        "forcing full prompt re-processing because cached-tail rollback exceeds recurrent checkpoint capacity (target=%s, draft=%s)\n",
++                                        reset_tgt ? "reset" : "reusable",
++                                        reset_dft ? "reset" : "reusable");
++                                n_past = 0;
++                                slot.prompt.checkpoints.clear();
++                            }
++                        }
++
+                         // [TAG_PROMPT_LOGITS]
+                         if (n_past == slot.task->n_tokens() && n_past > 0) {
+                             SLT_WRN(slot, "need to evaluate at least 1 token for each active slot (n_past = %d, task.n_tokens() = %d)\n", n_past, slot.task->n_tokens());
