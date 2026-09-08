@@ -1,0 +1,29 @@
+{
+  "model": "Qwen3.8-Flash-Next",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a practical coding assistant. Produce complete, correct artifacts with concise implementations. Use simple shapes and reusable styles. Include only requested features. Fit the requested size target by simplifying decoration. Finish all required structure before adding optional detail. Return only the requested artifact."
+    },
+    {
+      "role": "user",
+      "content": "Create one complete standalone SVG titled \"Token Inspector\" with viewBox=\"0 0 800 500\". Show a friendly cartoon robot beside a short conveyor with exactly three separate cards labeled YES, MAYBE, and NO; tilt the NO card as the visual joke. Use a dark background with cyan and amber accents and readable text. Add only two small CSS animations: a blinking robot eye and moving conveyor markings. Use simple native SVG shapes, at most two gradients, shared CSS, and at most two @keyframes definitions. No filters, particles, JavaScript, external resources, embedded HTML, or code comments. Include accessible title and desc elements. Keep the entire SVG compact, aiming for at most 2,500 output tokens and fewer than 100 SVG elements. Simplify details if needed to finish. Return raw SVG beginning with <svg and ending with </svg>, without Markdown fences."
+    }
+  ],
+  "temperature": 0.7,
+  "top_p": 0.8,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 1.5,
+  "repeat_penalty": 1.0,
+  "max_tokens": 8192,
+  "cache_prompt": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "reasoning_effort": "none",
+  "stream": true,
+  "stream_options": {
+    "include_usage": true
+  }
+}

@@ -21,7 +21,7 @@ Before starting:
 
 Then:
 
-1. On GitHub, select **Code → Download ZIP**.
+1. Download the source installer ZIP from [Releases](https://github.com/HoodieRat/FlashNext-GMKtec-Windows/releases), or select **Code → Download ZIP** for the current source.
 2. Extract the ZIP to a short local path such as `C:\FlashNext`. Do not run it from inside the ZIP.
 3. Double-click **`install.cmd`**.
 4. Approve Windows prompts for required signed tools and the final verified installation.
@@ -42,7 +42,9 @@ That is the normal installation. See [INSTALL.md](INSTALL.md) for command-line o
 
 Closing the dashboard window hides it; it does not quit the program. Use **Quit FlashNext** from the tray menu to stop the server and exit. Do not run the tray dashboard and console Manager at the same time.
 
-For the qualified performance setup, use `coding-balanced`, Thinking Off, Fixed MTP 6, Batch 2048, UBatch 2048, and 131,072 context. Throughput varies with the prompt and warm-up state. On the original machine, a 250-token deterministic check measured 33.25 tok/s cold and 52.39 tok/s after warm-up.
+The current validation baseline keeps Fixed MTP 6, Batch 2048, UBatch 2048, Q8 KV, and 131,072 context. On September 8, a compact SVG request with Thinking Off completed naturally at **32.55 generation tok/s**, with **zero cached prompt tokens**. This is one successful artifact, not a general reliability or production qualification. The exact prompts, sampling settings, output, and limitations are in the [validation record](docs/validation/2026-09-08-compact-svg/README.md).
+
+Do not assume selecting `coding-balanced` reproduces that request: its factory defaults enable thinking and use different sampling settings. Existing user overrides are preserved during application updates. Historical 250-token checks (33.25 tok/s cold and 52.39 tok/s after warm-up) are not comparable quality benchmarks and do not establish sustained useful-output speed.
 
 ## What FlashNext provides
 
@@ -56,7 +58,7 @@ For the qualified performance setup, use `coding-balanced`, Thinking Off, Fixed 
 - Resumable installation, exact file verification, atomic activation, and rollback copies.
 - C#, Python, Node.js, PowerShell, raw HTTP, OpenCode, and AgentWorkbench integration examples.
 
-FlashNext is not a cloud service or a general-purpose model manager. It intentionally supports one qualified hardware/model/runtime combination.
+FlashNext is not a cloud service or a general-purpose model manager. It targets one pinned hardware/model/runtime combination; broader generation quality and production readiness remain to be validated.
 
 ## How it works
 
@@ -88,6 +90,8 @@ The server listens on localhost by default. FlashNext creates a random API key, 
 | Model files | The drive/folder selected during installation |
 
 Run `install.cmd` again to update the application. Existing verified model files, settings, conversations, and runtime build caches are reused when compatible. Run `diagnose-install.cmd` after an installation failure. Run `uninstall.cmd` to remove the application and runtime; model files are retained unless the user explicitly chooses to remove them.
+
+For an already provisioned machine, releases can also include a **prebuilt app-update ZIP** with Dashboard, Manager, shared libraries, and the inventory-verified updater. See [app-update instructions](docs/PREBUILT-APP-UPDATE.md). This bundle is not a replacement for first-time runtime/model installation.
 
 ## Using the local API
 

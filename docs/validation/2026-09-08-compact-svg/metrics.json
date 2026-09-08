@@ -1,0 +1,93 @@
+{
+  "startedUtc": "2026-09-08T18:05:44Z",
+  "runtime": {
+    "repository": "https://github.com/halo-box/strix-llama.cpp",
+    "commit": "7449a0fe9710ab584c5f9a6d25e7a31eea2708b8",
+    "manifestSha256": "f155a5f84fdf0b60b89163606d2b7cc399feaf8d036169c84dc75f6aa32b9986",
+    "verifiedFiles": {
+      "ggml-base.dll": "93e297dcdf1d3578bd37c84569cb70e97ee6a83c2331fef0b43c020eb059d8d4",
+      "ggml-cpu.dll": "7b25a0340f1d0883922a568c6ef696e1654c5a630e03af08cee13a08ca2efd60",
+      "ggml-vulkan.dll": "76fb8dbabb4b5828bbff9fb76103ddd40554f92dbcc80723e5da1d11ae443df8",
+      "ggml.dll": "c8a7e5341200266613079f1f86fffed586a487d3cc467fca0f42e65884befe22",
+      "llama-bench-impl.dll": "7b8d323c8ff0347d5b3f19dbed4bf6396c1da94750d5dcc3f491d2531b85ac28",
+      "llama-bench.exe": "8fab61b56825bea158e7b2f7db8285a89754b647ee0e9430fab3ecc08f97bf59",
+      "llama-cli-impl.dll": "be368a118f46ec3148b48c34e6eaa62479f3d32143d9f7b00753ef5f83bc91cb",
+      "llama-cli.exe": "ebeab34a22dfedf9277631111b9ad94cdc26236696a8690d6afaeab1593e7b86",
+      "llama-common.dll": "6ffa717e297f565ca4ac628176e51f7e606d4c822bd4d6057103674650ad5785",
+      "llama-server-impl.dll": "1fe8498e35ea175c7598ea439b5b7ec2058da09f4974f06130eea544a0100f90",
+      "llama-server.exe": "a2f94530f9b782e0ebdc719cbf72fa9ed54faf65073800072e1eee875769d990",
+      "llama.dll": "a6862bfc66058efd0599ea036260ff3c69494ab58f6443375026f8a51f2462ff",
+      "mtmd.dll": "cbb1e8f96f380eab383ab87249d58b3b6eb4a96abe85e27f775b8d46b608beb1"
+    }
+  },
+  "model": {
+    "repository": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+    "quantization": "UD-Q4_K_XL"
+  },
+  "launch": {
+    "specType": "draft-mtp",
+    "specDraftNMax": 6,
+    "specDraftPMin": 0.75,
+    "context": 131072,
+    "batch": 2048,
+    "ubatch": 2048,
+    "cacheK": "q8_0",
+    "cacheV": "q8_0"
+  },
+  "requestFile": "request.json",
+  "seed": "Omitted in this one-off request; resolved seed was not captured.",
+  "wallSeconds": 46.20163209998282,
+  "timeToFirstTokenSeconds": 2.4459655999962706,
+  "finishReason": "stop",
+  "abortReason": null,
+  "error": null,
+  "usage": {
+    "completion_tokens": 1425,
+    "prompt_tokens": 256,
+    "total_tokens": 1681,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "reasoning": 0
+  },
+  "timings": {
+    "cache_n": 0,
+    "prompt_n": 256,
+    "prompt_ms": 2255.254,
+    "prompt_per_token_ms": 8.8095859375,
+    "prompt_per_second": 113.51271298044477,
+    "predicted_n": 1425,
+    "predicted_ms": 43751.6,
+    "predicted_per_token_ms": 30.72443820224719,
+    "predicted_per_second": 32.54738112434745,
+    "draft_n": 1141,
+    "draft_n_accepted": 1031
+  },
+  "mtpAcceptancePercent": 90.35933391761613,
+  "checks": {
+    "rawSvgStart": true,
+    "closedSvg": true,
+    "keyframes": 2,
+    "xmlValid": true,
+    "elements": 51,
+    "title": "Token Inspector",
+    "description": "A friendly cartoon robot inspects YES, MAYBE and NO cards on a conveyor; the NO card is tilted as the joke.",
+    "viewBox": "0 0 800 500",
+    "labels": [
+      "Token Inspector",
+      "YES",
+      "MAYBE",
+      "NO"
+    ],
+    "forbiddenElements": []
+  },
+  "originalOutputSha256": "9e5771bfd998e10d63f3d1c81e314f12225b972016c65e46aea10c9222dbf234",
+  "outputNote": "output.svg is the unedited generated content; repository newline normalization may change its file hash.",
+  "reasoningCharacters": 0,
+  "visualCheck": "Browser render inspected: recognizable robot, readable title and three labels, tilted NO card, no clipping or text overlap. Two CSS keyframes with matching uses; full animation-cycle behavior was not separately measured.",
+  "assessment": "Passed this compact SVG task. Naturally completed with zero cached prompt tokens. 32.55 generation tokens/sec is below the user's prior 36+ TPS baseline; one changed prompt cannot establish general reliability or an isolated causal explanation."
+}
