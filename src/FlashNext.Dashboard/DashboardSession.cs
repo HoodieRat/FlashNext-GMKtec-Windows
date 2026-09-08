@@ -479,14 +479,21 @@ public sealed partial class DashboardSession : INotifyPropertyChanged, IAsyncDis
             ChatCompletionResult completion;
             using (CancellationTokenSource liveSpeed = CancellationTokenSource.CreateLinkedTokenSource(_chat.Token))
             {
-                Task liveSpeedTask = TrackLiveSpeedAsync(client, before, liveSpeed.Token);
+                // The runtime updates Prometheus generation totals at completion, not while streaming.
+                // Start at EOF immediately before this request and accept only new slot/task timings.
+                LiveTimingLogReader? timingReader = Supervisor.Status.IsOwnedProcess ? new(serverLogPath) : null;
+                int? timingProcess = Supervisor.Status.ProcessId;
+                int receivedOutput = 0;
+                Task liveSpeedTask = TrackLiveSpeedAsync(timingReader, () => Volatile.Read(ref receivedOutput) != 0, timingProcess, liveSpeed.Token);
                 try
                 {
                     completion = await client.StreamChatAsync(prepared.Messages, profile, chunk =>
                     {
                         if (chunk.ReasoningContent.Length == 0 && chunk.Content.Length == 0) return Task.CompletedTask;
+                        Interlocked.Exchange(ref receivedOutput, 1);
                         RunOnUi(() =>
                         {
+                            if (_liveTpsState == "WAITING FOR TOKENS") SetLiveSpeed(null, "GENERATING • WAITING FOR TIMING");
                             if (chunk.ReasoningContent.Length > 0)
                             {
                                 phase = "Thinking…";
@@ -895,24 +902,38 @@ public sealed partial class DashboardSession : INotifyPropertyChanged, IAsyncDis
         TranscriptUpdated?.Invoke();
     }
 
-    private async Task TrackLiveSpeedAsync(LlamaApiClient client, MetricSnapshot before, CancellationToken cancellationToken)
+    private async Task TrackLiveSpeedAsync(LiveTimingLogReader? reader, Func<bool> hasOutput, int? processId, CancellationToken cancellationToken)
     {
+        long lastTimingTick = Environment.TickCount64;
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(750, cancellationToken).ConfigureAwait(false);
-                MetricSnapshot current = await client.GetMetricsAsync(cancellationToken).ConfigureAwait(false);
-                if (PrometheusParser.GenerationTokensPerSecond(before, current) is not double rate || !double.IsFinite(rate) || rate <= 0) continue;
-                RunOnUi(() => SetLiveSpeed(rate, "GENERATING NOW"));
+                // Snapshot before reading: a queued request's earlier timings must not be used
+                // just because our first output happens to arrive during this read.
+                bool receiving = hasOutput();
+                LiveGenerationTiming? timing = null;
+                if (reader is not null && Supervisor.Status.ProcessId == processId)
+                {
+                    try { timing = await reader.ReadAsync(cancellationToken).ConfigureAwait(false); }
+                    catch (IOException) { } // Retry next tick; optional telemetry must not interrupt the reply.
+                    catch (UnauthorizedAccessException) { }
+                }
+                if (!receiving) { lastTimingTick = Environment.TickCount64; continue; }
+                if (timing is not null)
+                {
+                    lastTimingTick = Environment.TickCount64;
+                    RunOnUi(() => { if (!cancellationToken.IsCancellationRequested) SetLiveSpeed(timing.RecentTps, "LIVE • ~3 SECOND WINDOW"); });
+                }
+                else if (Environment.TickCount64 - lastTimingTick > 10000)
+                {
+                    RunOnUi(() => { if (!cancellationToken.IsCancellationRequested) SetLiveSpeed(null, "GENERATING • TIMING UNAVAILABLE"); });
+                }
             }
         }
         catch (OperationCanceledException)
         {
-        }
-        catch
-        {
-            // The final runtime timing remains authoritative if live metrics are briefly unavailable.
         }
     }
 

@@ -24,6 +24,12 @@ Ratings are **0 (unrated)** or **1–5** for output quality, and save immediatel
 - Optional metric-log failures cannot turn a completed reply into a failed run. Prompt/report metadata is excluded from inference requests, prompt-prefix calculations, metric logs and support bundles.
 - Console load/save preserves reports and reply links; new capture and ratings are dashboard features.
 
-## Verification
+## Live speed versus completed-run speed
+
+The header and tray use the managed runtime's `tg_3s` timing lines for a roughly three-second rolling generation rate, labeled **LIVE • ~3 SECOND WINDOW**. The request's final average still comes from its completion timing and is labeled **LAST COMPLETED RUN**. These are different measurements, not competing results.
+
+The pinned runtime's Prometheus generation totals can remain zero until completion, so they are not used to drive the live panel. A read-only, bounded log tail begins at each request boundary, tracks slot 0/task identities, and excludes earlier runs. The panel leaves **WAITING FOR TOKENS** as soon as answer or reasoning content arrives. If timing data stops arriving for ten seconds, it shows **GENERATING • TIMING UNAVAILABLE** instead of a stale number. Temporary log-read failures are retried and cannot interrupt generation. External/unowned servers without a trusted local log do not get a fabricated live rate.
+
+## Verification coverage
 
 Focused core, dashboard and HTTP-stub integration tests cover immutable snapshots, pending versus active settings, multiple prompts, reopening, ratings and concurrent saves, ranking, interruptions, token limits, missing metrics, legacy conversations, disk failures and optional log failures. The WPF test exercises real bindings and renders the Reports tab. These tests do not run model completions or performance benchmarks.

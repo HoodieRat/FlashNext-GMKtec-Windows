@@ -14,6 +14,42 @@ namespace FlashNext.DashboardTests;
 public sealed class SendTests
 {
     [Fact]
+    public Task LiveTpsAppearsDuringStreamEvenWhenPrometheusCountersStayZero() => SessionTests.OnDispatcher(async () =>
+    {
+        using TestDirectory directory = new();
+        await using StubServer server = new(100, partialReply: false, completeReply: true, streamFirstChunk: true);
+        await using DashboardSession session = await CreateAttachedSession(directory, server);
+        // A synthetic owned-server status and private temp log; never attach to a real model.
+        ServerStatus stubStatus = (ServerStatus)session.Supervisor.GetType().GetField("_status", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session.Supervisor)!;
+        stubStatus.IsOwnedProcess = true;
+        string log = Path.Combine(session.Paths.LogsDirectory, "server-error.log");
+        await File.WriteAllTextAsync(log, string.Empty);
+        TaskCompletionSource receiving = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource live = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(session.LiveTpsState)) return;
+            if (session.LiveTpsState == "GENERATING • WAITING FOR TIMING") receiving.TrySetResult();
+            if (session.LiveTpsState == "LIVE • ~3 SECOND WINDOW") live.TrySetResult();
+        };
+        Task sending = session.SendAsync("offline live telemetry test");
+        try
+        {
+            await receiving.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(sending.IsCompleted);
+            Assert.Equal("—", session.LiveTpsText);
+            await File.AppendAllTextAsync(log, "slot launch_slot_: id 0 | task 1 | processing task\n" +
+                "slot print_timing: id 0 | task 1 | n_gen = 120, tg = 32.02 t/s, tg_3s = 36.79 t/s\n");
+            await live.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(sending.IsCompleted);
+            Assert.Equal("36.8", session.LiveTpsText);
+        }
+        finally { server.ContinueReply.TrySetResult(); await sending; }
+        Assert.Equal("10.0", session.LiveTpsText); // Final request average remains authoritative.
+        Assert.Equal("LAST COMPLETED RUN", session.LiveTpsState);
+    });
+
+    [Fact]
     public Task ReportsFreezeActualRequestSettingsAndSurviveLaterPromptsAndReopening() => SessionTests.OnDispatcher(async () =>
     {
         using TestDirectory directory = new();
@@ -269,7 +305,7 @@ public sealed class SendTests
         public TaskCompletionSource RequestReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ContinueReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public StubServer(int tokens, bool partialReply, bool completeReply = false, string finishReason = "stop", bool holdResponse = false)
+        public StubServer(int tokens, bool partialReply, bool completeReply = false, string finishReason = "stop", bool holdResponse = false, bool streamFirstChunk = false)
         {
             using TcpListener probe = new(IPAddress.Loopback, 0);
             probe.Start();
@@ -293,6 +329,7 @@ public sealed class SendTests
                             "/props" => """{"default_generation_settings":{"n_ctx":8192}}""",
                             "/apply-template" => """{"prompt":"rendered chat"}""",
                             "/tokenize" => JsonSerializer.Serialize(new { tokens = Enumerable.Range(0, tokens) }),
+                            "/metrics" => "llamacpp:tokens_predicted_total 0\nllamacpp:tokens_predicted_seconds_total 0\n",
                             _ => "{}"
                         };
                         if (path == "/v1/chat/completions")
@@ -303,6 +340,14 @@ public sealed class SendTests
                             if (holdResponse) await ContinueReply.Task;
                             context.Response.StatusCode = partialReply || completeReply ? 200 : 503;
                             context.Response.ContentType = partialReply || completeReply ? "text/event-stream" : "application/json";
+                            if (streamFirstChunk)
+                            {
+                                context.Response.SendChunked = true;
+                                byte[] first = Encoding.UTF8.GetBytes("data: {\"choices\":[{\"delta\":{\"content\":\"first chunk \"}}]}\n\n");
+                                await context.Response.OutputStream.WriteAsync(first);
+                                await context.Response.OutputStream.FlushAsync();
+                                await ContinueReply.Task;
+                            }
                             body = partialReply
                                 ? "data: {\"choices\":[{\"delta\":{\"content\":\"partial code\"}}]}\n\ndata: invalid JSON\n\n"
                                 : """{"error":{"message":"Temporarily unavailable"}}""";
@@ -314,7 +359,7 @@ public sealed class SendTests
                             }) + "\n\ndata: [DONE]\n\n";
                         }
                         byte[] bytes = Encoding.UTF8.GetBytes(body);
-                        context.Response.ContentLength64 = bytes.Length;
+                        if (!context.Response.SendChunked) context.Response.ContentLength64 = bytes.Length;
                         await context.Response.OutputStream.WriteAsync(bytes);
                         context.Response.Close();
                     }
