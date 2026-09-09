@@ -1,0 +1,10 @@
+# RepoRoad · commit this file at the root of your public repository
+version: 1
+style: greenhouse
+color: "#778565"
+roof: gable
+garden: true
+signText: ""
+support:
+  sponsor: false
+  helpWanted: true
